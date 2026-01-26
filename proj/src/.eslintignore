@@ -1,0 +1,6 @@
+node_modules/
+dist/
+logs/
+database/*.sqlite
+profiles/
+*.min.js

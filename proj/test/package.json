@@ -1,0 +1,13 @@
+{
+  "name": "pkm_test",
+  "version": "1.0.0",
+  "description": "test",
+  "main": "index.js",
+  "author": "pkm",
+  "license": "UNLICENSED",
+  "dependencies": {
+    "dayjs": "^1.11.19",
+    "imapflow": "^1.2.6",
+    "mailparser": "^3.9.1"
+  }
+}
