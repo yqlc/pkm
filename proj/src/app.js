@@ -2,6 +2,7 @@ const { fork } = require('child_process');
 const { EventEmitter } = require('events');
 const path = require('path');
 const createLogger = require('./utils/logger');
+const config = require('./config/default');
 const { sequelize, EmailLog } = require('./database');
 
 const logger = createLogger('MAIN');
@@ -15,6 +16,9 @@ async function initSystem() {
   try {
     // 1. 同步数据库
     await sequelize.sync(); // 生产环境建议用 Migrations，这里简化为 sync
+
+    await sequelize.query(`PRAGMA key = '${config.db.encryptionKey}';`);
+
     logger.info('数据库已连接并同步');
 
     // 2. 获取最后一次处理的邮件UID，用于断点续传
@@ -25,6 +29,7 @@ async function initSystem() {
     startEmailWorker(lastUid);
 
     // 4. 初始化其他模块 (注册、Web等 - 暂时留空)
+    startRegisterWorker();
     logger.info('系统初始化完成，等待任务...');
     
   } catch (err) {
@@ -82,6 +87,29 @@ function startEmailWorker(initialUid) {
         EmailLog.findOne({ order: [['uid', 'DESC']] }).then(last => {
           startEmailWorker(last ? last.uid : 0);
         });
+      }, 3000);
+    }
+  });
+}
+
+function startRegisterWorker() {
+  const workerPath = path.join(__dirname, 'register', 'index.js');
+  const registerWorker = fork(workerPath);
+
+  // 发送初始UID给子进程
+  registerWorker.send({ type: 'START' });
+
+  // 监听子进程消息
+  registerWorker.on('message', async (msg) => {
+    
+  });
+
+  // 守护进程：子进程挂了自动重启
+  registerWorker.on('exit', (code) => {
+    if (code !== 0) {
+      logger.error(`注册子进程异常退出 (Code ${code})，3秒后重启...`);
+      setTimeout(() => {
+        startRegisterWorker();
       }, 3000);
     }
   });
