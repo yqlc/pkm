@@ -1,9 +1,14 @@
-require('dotenv').config();
+const { register } = require('module');
+const path = require('path');
+
+require('dotenv').config({
+  path: path.resolve(__dirname, '.env')
+});
 
 module.exports = {
   // 数据库配置
   db: {
-    storage: './asset/pkm.sqlite',
+    storage: './assets/pkm.sqlite',
     encryptionKey: process.env.DB_ENCRYPTION_KEY // 如使用加密数据库，请设置此项
   },
   // 邮箱监控配置
@@ -13,5 +18,8 @@ module.exports = {
     host: process.env.EMAIL_HOST || 'imap.163.com',
     port: parseInt(process.env.EMAIL_PORT) || 993,
     tls: true,
+  },
+  register: {
+    excelFilePath: process.env.REGISTER_EXCEL_FILE_PATH || './assets/accounts.xlsx'
   }
 };

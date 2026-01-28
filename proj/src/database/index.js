@@ -2,18 +2,15 @@ const { Sequelize, DataTypes } = require('sequelize');
 const config = require('../config/default');
 const path = require('path');
 const fs = require('fs-extra');
-const Sqlite = require('better-sqlite3');
+const BetterSqlite = require('better-sqlite3');
 
 // 确保数据库目录存在
 fs.ensureDirSync(path.dirname(config.db.storage));
 
 const sequelize = new Sequelize({
   dialect: 'sqlite',
-  dialectOptions: {
-    // better-sqlite3 需要这样传递
-    driver: Sqlite,
-    path: config.db.storage
-  },
+  // dialectModule: BetterSqlite,
+  storage: config.db.storage,
   logging: false // 关闭SQL控制台输出，保持日志纯净
 });
 
@@ -61,7 +58,6 @@ const Account = sequelize.define('Account', {
   },
   address: DataTypes.STRING,
 }, {
-  tableName: 'account',
   timestamps: true,
 });
 

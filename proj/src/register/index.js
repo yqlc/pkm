@@ -8,16 +8,13 @@ const logger = createLogger('REGISTER');
 
 let stopped = false;
 
-async function start() {
-    logger.info('注册模块启动');
+async function start(filePath) {
+  logger.info('注册模块启动', filePath);
   // 这里可以添加注册相关的逻辑
-// async function importExcel(filePath) {
   const workbook = xlsx.readFile(filePath);
   const sheet = workbook.Sheets['Sheet1'];
 
   if (!sheet) throw new Error('Sheet1 不存在');
-
-  await sequelize.sync(); // 自动建表
 
   const rows = [];
   let rowIndex = 4;
@@ -51,7 +48,9 @@ async function start() {
 
     rowIndex++;
   }
-  while (!stopped) {  
+
+  console.log(`共读取到 ${rows.length} 条注册数据`, rows);
+  while (!stopped) {
     await new Promise(resolve => setTimeout(resolve, 10000)); // 模拟工作
   }
 }
@@ -60,7 +59,7 @@ async function start() {
 process.on('message', (msg) => {
   if (msg.type === 'START') {
     stopped = false;
-    start();
+    start(msg.filePath);
   }
 
   if (msg.type === 'STOP') {

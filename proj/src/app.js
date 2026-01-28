@@ -97,7 +97,8 @@ function startRegisterWorker() {
   const registerWorker = fork(workerPath);
 
   // 发送初始UID给子进程
-  registerWorker.send({ type: 'START' });
+  const filePath = path.resolve(config.register.excelFilePath);
+  registerWorker.send({ type: 'START', filePath: filePath });
 
   // 监听子进程消息
   registerWorker.on('message', async (msg) => {
