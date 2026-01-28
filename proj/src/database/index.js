@@ -2,14 +2,12 @@ const { Sequelize, DataTypes } = require('sequelize');
 const config = require('../config/default');
 const path = require('path');
 const fs = require('fs-extra');
-const BetterSqlite = require('better-sqlite3');
 
 // 确保数据库目录存在
 fs.ensureDirSync(path.dirname(config.db.storage));
 
 const sequelize = new Sequelize({
   dialect: 'sqlite',
-  // dialectModule: BetterSqlite,
   storage: config.db.storage,
   logging: false // 关闭SQL控制台输出，保持日志纯净
 });

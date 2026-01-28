@@ -14,10 +14,13 @@ process.on('unhandledRejection', (reason) => logger.error(`未处理 Promise: ${
 
 async function initSystem() {
   try {
-    // 1. 同步数据库
+    // 先配置key
+    await sequelize.query(`PRAGMA key = '${config.db.encryptionKey}';`);
+    await sequelize.authenticate();
+    // 同步数据库结构
     await sequelize.sync(); // 生产环境建议用 Migrations，这里简化为 sync
 
-    await sequelize.query(`PRAGMA key = '${config.db.encryptionKey}';`);
+
 
     logger.info('数据库已连接并同步');
 

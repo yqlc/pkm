@@ -12,7 +12,6 @@
     "lint:fix": "eslint . --fix"
   },
   "dependencies": {
-    "better-sqlite3": "^12.6.2",
     "dayjs": "^1.11.19",
     "dotenv": "^17.2.3",
     "fs-extra": "^11.3.3",
