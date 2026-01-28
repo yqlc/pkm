@@ -81,7 +81,7 @@ async function mainLoop(imap, myGen) {
       const onExists = (data) => {
         const newCount = data.count - data.prevCount;
         logger.info(`监测到新邮件事件 (新增 ${newCount} 封 / 总计 ${data.count})`);
-      
+
         abortWait();
       };
 

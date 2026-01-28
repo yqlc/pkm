@@ -31,7 +31,7 @@ async function initSystem() {
     // 4. 初始化其他模块 (注册、Web等 - 暂时留空)
     startRegisterWorker();
     logger.info('系统初始化完成，等待任务...');
-    
+
   } catch (err) {
     logger.error(`系统启动失败: ${err.message}`);
     process.exit(1);
@@ -64,7 +64,7 @@ function startEmailWorker(initialUid) {
         // B. 广播事件 (供注册模块监听)
         // 事件名格式示例: 'EMAIL_EVENT:verify_code' 或 'EMAIL_EVENT:register_url'
         eventBus.emit('EMAIL_EVENT', emailData);
-        
+
         // 如果你需要针对特定邮箱广播，以便 Puppeteer 等待：
         // eventBus.emit(`TARGET:${emailData.sender}`, emailData);
 
@@ -101,7 +101,7 @@ function startRegisterWorker() {
 
   // 监听子进程消息
   registerWorker.on('message', async (msg) => {
-    
+
   });
 
   // 守护进程：子进程挂了自动重启

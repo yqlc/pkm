@@ -9,9 +9,9 @@ const logger = createLogger('REGISTER');
 let stopped = false;
 
 async function start() {
-  logger.info('注册模块启动');
+    logger.info('注册模块启动');
   // 这里可以添加注册相关的逻辑
-async function importExcel(filePath) {
+// async function importExcel(filePath) {
   const workbook = xlsx.readFile(filePath);
   const sheet = workbook.Sheets['Sheet1'];
 
