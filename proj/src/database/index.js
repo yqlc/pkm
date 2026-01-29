@@ -18,8 +18,7 @@ const EmailLog = sequelize.define('EmailLog', {
   sender: DataTypes.STRING,
   recipient: DataTypes.STRING,
   subject: DataTypes.STRING,
-  parsed_code: DataTypes.STRING, // 提取出的验证码
-  parsed_url: DataTypes.STRING,  // 提取出的跳转链接
+  parsed_resutl: DataTypes.STRING,  // 提取出的结果
   processed: { type: DataTypes.BOOLEAN, defaultValue: true }
 });
 
@@ -55,6 +54,8 @@ const Account = sequelize.define('Account', {
     field: 'zip_code',
   },
   address: DataTypes.STRING,
+  registered: { type: DataTypes.BOOLEAN, defaultValue: false },
+  reason: DataTypes.STRING,
 }, {
   timestamps: true,
 });

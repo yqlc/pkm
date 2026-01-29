@@ -3,7 +3,7 @@ const { EventEmitter } = require('events');
 const path = require('path');
 const createLogger = require('./utils/logger');
 const config = require('./config/default');
-const { sequelize, EmailLog } = require('./database');
+const { sequelize, EmailLog, Account } = require('./database');
 
 const logger = createLogger('MAIN');
 const eventBus = new EventEmitter();
@@ -15,12 +15,10 @@ process.on('unhandledRejection', (reason) => logger.error(`未处理 Promise: ${
 async function initSystem() {
   try {
     // 先配置key
-    await sequelize.query(`PRAGMA key = '${config.db.encryptionKey}';`);
+    // await sequelize.query(`PRAGMA key = '${config.db.encryptionKey}';`);
     await sequelize.authenticate();
     // 同步数据库结构
     await sequelize.sync(); // 生产环境建议用 Migrations，这里简化为 sync
-
-
 
     logger.info('数据库已连接并同步');
 
@@ -41,7 +39,7 @@ async function initSystem() {
   }
 }
 
-function startEmailWorker(initialUid) {
+async function startEmailWorker(initialUid) {
   const workerPath = path.join(__dirname, 'email', 'index.js');
   const emailWorker = fork(workerPath);
 
@@ -95,7 +93,7 @@ function startEmailWorker(initialUid) {
   });
 }
 
-function startRegisterWorker() {
+async function startRegisterWorker() {
   const workerPath = path.join(__dirname, 'register', 'index.js');
   const registerWorker = fork(workerPath);
 
@@ -105,7 +103,19 @@ function startRegisterWorker() {
 
   // 监听子进程消息
   registerWorker.on('message', async (msg) => {
+    if (msg.type === 'FIND_ACCOUNTS') {
+      const accounts = msg.accounts;
 
+      // 写入数据库
+      try {
+        const result = await Account.bulkCreate(accounts, {
+          ignoreDuplicates: true
+        });
+        logger.info(`成功将 ${result.length} 条账户记录写入数据库`);
+      } catch (err) {
+        logger.error(`写入数据库失败: ${err.message}`);
+      }
+    }
   });
 
   // 守护进程：子进程挂了自动重启
@@ -116,6 +126,18 @@ function startRegisterWorker() {
         startRegisterWorker();
       }, 3000);
     }
+  });
+
+  // 查询未完成注册的账号，并发送给注册进程
+  const pendingAccounts = await Account.findAll({ where: { registered: false } });
+  if (pendingAccounts.length > 0) {
+    registerWorker.send({ type: 'PENDING_ACCOUNTS', accounts: pendingAccounts });
+    logger.info(`发送 ${pendingAccounts.length} 条未完成注册的账号给邮箱子进程`);
+  }
+
+  eventBus.on('EMAIL_EVENT', (emailData) => {
+    // 这里可以根据 emailData 内容决定是否发送给注册子进程
+    registerWorker.send({ type: 'EMAIL_EVENT', data: emailData });
   });
 }
 

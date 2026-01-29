@@ -1,16 +1,51 @@
 const createLogger = require('../utils/logger');
-const config = require('../config/default');
 const dayjs = require('dayjs');
 const xlsx = require('xlsx');
 const path = require('path');
+const fs = require('fs');
 
 const logger = createLogger('REGISTER');
 
-let stopped = false;
+let listenXlsxPath = null;
+let stopped = true;
+const registerAccounts = [];
 
-async function start(filePath) {
-  logger.info('注册模块启动', filePath);
-  // 这里可以添加注册相关的逻辑
+async function start() {
+  logger.info('注册模块启动');
+
+  while (stopped === false && listenXlsxPath) {
+    try {
+      if (fs.existsSync(listenXlsxPath)) {
+
+        const accounts = parseAccountsFromXlsx(listenXlsxPath);
+        logger.info(`读取到 ${accounts.length} 条注册数据`);
+
+        process.send({ type: 'FIND_ACCOUNTS', accounts: accounts });
+
+        try {
+          const ext = path.extname(listenXlsxPath) || '';
+          const dir = path.dirname(listenXlsxPath);
+          const base = path.basename(listenXlsxPath, ext);
+          const timestamp = dayjs().format('YYYYMMDD_HHmmss');
+          const newName = `${base}_${timestamp}${ext}`;
+          const newPath = path.join(dir, newName);
+
+          await fs.promises.rename(listenXlsxPath, newPath);
+          logger.info(`已将注册文件重命名为 ${newPath}`);
+
+        } catch (err) {
+          logger.error(`重命名注册文件失败: ${err.message}`);
+        }
+      }
+    } catch (err) {
+      logger.error(`读取注册文件失败: ${err.message}`);
+    }
+
+    await new Promise(resolve => setTimeout(resolve, 60_000));
+  }
+}
+
+function parseAccountsFromXlsx(filePath) {
   const workbook = xlsx.readFile(filePath);
   const sheet = workbook.Sheets['Sheet1'];
 
@@ -49,17 +84,25 @@ async function start(filePath) {
     rowIndex++;
   }
 
-  console.log(`共读取到 ${rows.length} 条注册数据`, rows);
-  while (!stopped) {
-    await new Promise(resolve => setTimeout(resolve, 10000)); // 模拟工作
-  }
+  return rows;
 }
 
 // IPC
 process.on('message', (msg) => {
   if (msg.type === 'START') {
-    stopped = false;
-    start(msg.filePath);
+    listenXlsxPath = msg.filePath;
+    if (stopped) {
+      stopped = false;
+
+      start();
+    }
+  }
+
+  // 接收主进程过来的注册未完成账号
+  if (msg.type === 'PENDING_ACCOUNTS') {
+    const accounts = msg.accounts;
+    logger.info(`收到主进程发送的 ${accounts.length} 条未完成注册的账号`);
+    registerAccounts.push(...accounts);
   }
 
   if (msg.type === 'STOP') {
