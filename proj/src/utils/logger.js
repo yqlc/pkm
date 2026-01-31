@@ -3,14 +3,14 @@ const DailyRotateFile = require('winston-daily-rotate-file');
 const path = require('path');
 
 const printfFormat = winston.format.printf(({ timestamp, level, message, label }) => {
-    return `[${timestamp}] [${label || 'MAIN'}] ${level.toUpperCase()}: ${message}`;
-  });
+  return `[${timestamp}] [${label || 'MAIN'}] ${level.toUpperCase()}: ${message}`;
+});
 
 const createLogger = (label) => {
   return winston.createLogger({
     format: winston.format.combine(
-      winston.format.label({ label }), 
-      winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }), 
+      winston.format.label({ label }),
+      winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
       printfFormat
     ),
     transports: [
@@ -32,4 +32,10 @@ const createLogger = (label) => {
   });
 };
 
-module.exports = createLogger;
+const mainLogger = createLogger('MAIN');
+
+module.exports = {
+  __esModule: true,
+  default: createLogger,
+  mainLogger
+};

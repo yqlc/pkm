@@ -1,4 +1,4 @@
-const createLogger = require('../utils/logger');
+const { default: createLogger } = require('../utils/logger');
 const dayjs = require('dayjs');
 const xlsx = require('xlsx');
 const path = require('path');
@@ -89,25 +89,29 @@ function parseAccountsFromXlsx(filePath) {
 
 // IPC
 process.on('message', (msg) => {
-  if (msg.type === 'START') {
+  switch (msg.type) {
+  case 'START':
     listenXlsxPath = msg.filePath;
     if (stopped) {
       stopped = false;
 
       start();
     }
-  }
-
-  // 接收主进程过来的注册未完成账号
-  if (msg.type === 'PENDING_ACCOUNTS') {
+    break;
+  case 'PENDING_ACCOUNTS':
+    // 接收主进程过来的注册未完成账号
     const accounts = msg.accounts;
     logger.info(`收到主进程发送的 ${accounts.length} 条未完成注册的账号`);
     registerAccounts.push(...accounts);
-  }
-
-  if (msg.type === 'STOP') {
+    break;
+  case 'REGISTER_EVENT':
+    const emailData = msg.data;
+    logger.info(`收到主进程发送的注册事件: ${emailData}`);
+    break;
+  case 'STOP':
     logger.warn('收到 STOP');
     stopped = true;
+    break;
   }
 });
 

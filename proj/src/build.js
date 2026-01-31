@@ -2,6 +2,8 @@ const fs = require('fs-extra');
 const path = require('path');
 const JavaScriptObfuscator = require('javascript-obfuscator');
 
+/* eslint-disable no-console */
+
 const SRC_DIR = __dirname;
 const DIST_DIR = path.join(__dirname, 'dist');
 
@@ -56,10 +58,10 @@ async function build() {
 
   // 3. 拷贝必须的静态资源或 Config (如果 config 不需要混淆)
   // await fs.copy(path.join(SRC_DIR, 'config'), path.join(DIST_DIR, 'config'));
-  
+
   // 4. 创建 package.json 到 dist (只包含运行脚本)
   const pkg = require('./package.json');
-  pkg.scripts = { start: "node app.js" };
+  pkg.scripts = { start: 'node app.js' };
   delete pkg.devDependencies;
   await fs.writeJson(path.join(DIST_DIR, 'package.json'), pkg, { spaces: 2 });
 
@@ -73,7 +75,7 @@ async function copyAndObfuscateDir(srcDir, destDir) {
     const srcPath = path.join(srcDir, item);
     const destPath = path.join(destDir, item);
     const stat = await fs.stat(srcPath);
-    
+
     if (stat.isDirectory()) {
       await copyAndObfuscateDir(srcPath, destPath);
     } else if (item.endsWith('.js')) {

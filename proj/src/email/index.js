@@ -1,6 +1,6 @@
 const { ImapFlow } = require('imapflow');
 const { simpleParser } = require('mailparser');
-const createLogger = require('../utils/logger');
+const { default: createLogger } = require('../utils/logger');
 const config = require('../config/default');
 const dayjs = require('dayjs');
 
@@ -39,6 +39,12 @@ async function start() {
   });
 
   client = imap;
+
+  // 添加错误监听器，防止未处理的错误导致进程崩溃
+  imap.on('error', (err) => {
+    logger.error(`IMAP 连接错误: ${err.message}`, err);
+    // 不要在这里直接重启，让 close 事件处理重启逻辑
+  });
 
   imap.on('close', () => {
     if (generation !== myGen || stopped) return;
@@ -164,15 +170,15 @@ async function fetchAndProcessEmails(imap) {
   });
 
   for await (const msg of messages) {
-    // if (msg.uid <= lastProcessedUID) continue;
-    // lastProcessedUID = msg.uid;
-
-    const uid = msg.uid;
-    if (uid > lastProcessedUID) lastProcessedUID = uid;
+    const msgUid = msg.uid;
+    if (msgUid <= lastProcessedUID) {
+      continue;
+    } else {
+      lastProcessedUID = msgUid;
+    }
 
     const fromAddress = msg.envelope.from[0].address;
-    logger.info(`命中目标邮件 UID:${uid} 主题: ${msg.envelope.subject} 来自: ${fromAddress}`);
-
+    logger.info(`命中目标邮件 UID:${msgUid} 主题: ${msg.envelope.subject} 来自: ${fromAddress}`);
     try {
       const parsed = await simpleParser(msg.source);
       const res = analyzeEmailContent(parsed.text || parsed.html);
@@ -180,11 +186,11 @@ async function fetchAndProcessEmails(imap) {
         logger.info(`解析成功 UID:${msg.uid} 主题:${parsed.subject} 结果: ${JSON.stringify(res)}`);
         process.send({
           type: 'EMAIL_FOUND',
-          data: { uid: msg.uid, ...res }
+          data: { uid: msgUid, ...res }
         });
       }
     } catch (e) {
-      logger.error(`解析失败 UID:${msg.uid}`);
+      logger.error(`解析失败 UID:${msgUid} 错误: ${e.message}`);
     }
   }
 }
@@ -192,7 +198,11 @@ async function fetchAndProcessEmails(imap) {
 function analyzeEmailContent(content) {
   if (!content) return null;
   const code = content.match(/验证码[：:]\s*(\d{6})/)?.[1];
-  const url = content.match(/(https?:\/\/[^\s"'<>]+)/)?.[1];
+  const url = content.match(/(https:\/\/www\.pokemoncenter-online\.com\/new-customer\?token=[^\s"'<>]+)/)?.[1];
+  if (url) {
+    return { type: 'register_url', url };
+  }
+
   return code || url ? { code, url } : null;
 }
 

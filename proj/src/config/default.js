@@ -1,4 +1,3 @@
-const { register } = require('module');
 const path = require('path');
 
 require('dotenv').config({
