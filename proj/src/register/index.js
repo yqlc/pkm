@@ -476,12 +476,63 @@ async function continueRegister(browser, registerUrl, accountData) {
   await sleep(Math.floor(Math.random() * 1000) + 500);
 
   // 注册按钮
-  // await simulatePageClick(registerPage, '#registration_button', Math.random() * 100);
+  await simulatePageClick(registerPage, '#registration_button', Math.random() * 100);
 
-  // TODO: 注册完成
-  // 关闭页面
-  // await registerPage.close();
-  await sleep(2000000);
+  // 检查页面跳转是否符合成功条件，页面跳转不是立即发生的，需要等待并持续监控页面URL
+  const startTime = Date.now();
+  const maxWaitTime = 60000; // 最大等待时间60秒
+
+  while ((Date.now() - startTime) < maxWaitTime) {
+    const currentUrl = registerPage.url();
+    logger.info(`监控页面URL: ${currentUrl}`);
+
+    // 检查是否跳转到了成功确认页面
+    const successPattern = /https:\/\/www\.pokemoncenter-online\.com\/new-customer-confirm\/\?rurl=1/;
+    if (successPattern.test(currentUrl)) {
+      logger.info('检测到注册成功确认页面，注册流程完成');
+      // 关闭页面
+      await registerPage.close();
+      return; // 结束当前流程
+    }
+
+    // 检查界面中 error-messaging 节点下是否有子节点
+    try {
+      const hasChildNodes = await registerPage.evaluate(() => {
+        const errorDiv = document.querySelector('.error-messaging');
+        return errorDiv && errorDiv.children.length > 0;
+      });
+
+      if (hasChildNodes) {
+        // 获取具体的错误信息
+        const errorText = await registerPage.evaluate(() => {
+          const errorDiv = document.querySelector('.error-messaging');
+          return errorDiv ? errorDiv.innerText.trim() : '';
+        });
+
+        logger.info(`检测到错误信息: ${errorText}`);
+
+        // 抛出异常，结束当前流程
+        throw new Error(`注册信息填写页面错误: ${errorText}`);
+      }
+    } catch (err) {
+      logger.warn(`检查注册是否包含错误信息时出现问题: ${err.message}`);
+
+      await registerPage.close();
+
+      // 注册过程中出现错误，关闭页面并抛出异常
+      throw err;
+    }
+
+    // 等待一段时间后再检查
+    await sleep(1000); // 等待1秒
+  }
+
+  logger.info('超过最大等待时间，页面仍未跳转到预期URL');
+  await registerPage.close();
+
+  const timeoutError = new Error('完成注册信息填写，后页面跳转检测超时');
+  timeoutError.name = 'TimeoutError';
+  throw timeoutError;
 }
 
 async function simulateRegister() {
@@ -501,6 +552,13 @@ async function simulateRegister() {
         await actualRegisterLogic(accountData);
 
         logger.info(`账号 ${accountData.account} 注册逻辑完成`);
+
+        process.send({
+          type: 'REGISTER_ACCOUNT_SUCCESS',
+          data: {
+            account: accountData.account
+          }
+        });
       } catch (error) {
         logger.error(`处理账号 ${accountData.account} 时出错: ${error.message}`);
 
