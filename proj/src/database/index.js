@@ -18,6 +18,7 @@ const EmailLog = sequelize.define('EmailLog', {
   sender: DataTypes.STRING,
   recipient: DataTypes.STRING,
   subject: DataTypes.STRING,
+  receiveDate: DataTypes.DATE,
   parsedType: DataTypes.STRING,  // 解析类型，如 register_url, login_captcha
   parsedResult: DataTypes.STRING,  // 提取出的结果
   processed: { type: DataTypes.BOOLEAN, defaultValue: true }

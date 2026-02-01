@@ -21,6 +21,8 @@ module.exports = {
     tls: true,
   },
   register: {
+    timeOfRegisterUrlInMail: 60,  // 注册链接在邮件中的有效时间（分钟）
+    timeOfListemRegisterUrl: 60,  // 监听注册链接的时间（分钟）
     excelFilePath: path.join(rootDir, process.env.REGISTER_EXCEL_FILE_PATH || 'assets/accounts.xlsx')
   },
   browser: {

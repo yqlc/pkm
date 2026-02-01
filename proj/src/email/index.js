@@ -192,6 +192,7 @@ async function fetchAndProcessEmails(imap) {
             sender: fromAddress,
             subject: parsed.subject,
             recipient: toAddress,
+            receiveDate: msg.envelope.date,
             ...res,
           }
         });
@@ -212,7 +213,7 @@ function analyzeEmailContent(receiveDate, content) {
     const receivedTime = new Date(receiveDate);
     const timeDiffInMinutes = (now - receivedTime) / (1000 * 60);
 
-    if (timeDiffInMinutes <= 60) {
+    if (timeDiffInMinutes <= config.register.timeOfRegisterUrlInMail) {
       return { type: 'register_url', result: url };
     } else {
       // console.log(`URL 已超过60分钟有效期，接收时间: ${receivedTime}, 当前时间: ${now}`);

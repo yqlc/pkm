@@ -71,6 +71,7 @@ async function startRegisterWorker(eventBus, logger) {
       }
       break;
     case 'GET_NEWEST_REGISTER_URL':
+      let data = null;
       try {
         const { account } = msg.data;
         // 从 EmailLogs 表中读取最新账号的注册信息
@@ -83,26 +84,25 @@ async function startRegisterWorker(eventBus, logger) {
         });
 
         if (latestEmailLog && latestEmailLog.parsedResult) {
-          registerWorker.send({
-            type: 'NEWEST_REGISTER_URL_RESPONSE',
-            data: {
+          // 检查邮件接收时间是否在60分钟内
+          const now = new Date();
+          const emailTime = new Date(latestEmailLog.receiveDate);
+          const timeDiffInMinutes = (now - emailTime) / (1000 * 60);
+
+          if (timeDiffInMinutes <= config.register.timeOfRegisterUrlInMail) { // 60分钟内
+            data = {
               url: latestEmailLog.parsedResult,
-              createdAt: latestEmailLog.createdAt
-            }
-          });
-        } else {
-          registerWorker.send({
-            type: 'NEWEST_REGISTER_URL_RESPONSE',
-            data: null
-          });
+            };
+          }
         }
       } catch (err) {
         logger.error(`获取最新注册链接失败: ${err.message}`);
-        registerWorker.send({
-          type: 'NEWEST_REGISTER_URL_RESPONSE',
-          data: null
-        });
       }
+
+      registerWorker.send({
+        type: 'NEWEST_REGISTER_URL_RESPONSE',
+        data: data
+      });
       break;
     default:
       break;

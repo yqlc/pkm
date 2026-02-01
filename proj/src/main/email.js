@@ -25,6 +25,7 @@ async function startEmailWorker(eventBus, logger, initialUid) {
           sender: emailData.sender,
           subject: emailData.subject,
           recipient: emailData.recipient,
+          receiveDate: emailData.receiveDate,
           parsedType: emailData.type,
           parsedResult: emailData.result,
         });

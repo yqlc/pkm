@@ -98,6 +98,42 @@ function isAccountInQueue(account) {
   return registerAccounts.some(acc => acc.account === account);
 }
 
+async function getValidRegisterUrl(account) {
+  // 从主进程获取数据库中是否已收到最新的注册链接
+  const checkNewestUrlPromise = new Promise((resolve) => {
+    // 发送请求获取最新注册链接
+    let timeoutId;
+    const handleResponse = (msg) => {
+      if (msg.type === 'NEWEST_REGISTER_URL_RESPONSE') {
+        clearTimeout(timeoutId);
+        process.removeListener('message', handleResponse);
+        resolve(msg.data?.url);
+      }
+    };
+
+    process.on('message', handleResponse);
+
+    // 设置短超时，如果主进程没有响应，继续等待邮箱
+    timeoutId = setTimeout(() => {
+      process.removeListener('message', handleResponse);
+      resolve(null); // 超时则返回 null
+    }, 5000); // 5秒超时
+
+    process.send({
+      type: 'GET_NEWEST_REGISTER_URL',
+      data: {
+        account: account
+      }
+    });
+  });
+
+  try {
+    return await checkNewestUrlPromise;
+  } catch {
+    return null;
+  }
+}
+
 async function actualRegisterLogic(accountData) {
   logger.info(`开始处理账号: ${accountData.account}`);
 
@@ -166,57 +202,66 @@ async function actualRegisterLogic(accountData) {
 
     logger.debug(`当前IP地址: ${ipInfo.ip}, 所在地区: ${ipInfo.region}, ${ipInfo.country}, ${ipInfo.city}`);
 
-    // 新建页面并打开 Pokemon Center 网站
-    const pokemonPage = await browser.newPage();
-    await pokemonPage.goto('https://www.pokemoncenter-online.com/login/', { waitUntil: 'networkidle2' });
+    // 是日本ip，继续操作
+    const registerUrl = await getValidRegisterUrl(accountData.account);
+    // 注册链接是否有效
+    if (registerUrl) {
+      logger.info(`从数据库获取到最新的注册链接: ${registerUrl}`);
 
-    logger.info('已打开 Pokemon Center 网站');
+      await waitForRegisterEmail(browser, null, registerUrl, accountData);
+    } else {
+      // 新建页面并打开 Pokemon Center 网站
+      const pokemonPage = await browser.newPage();
+      await pokemonPage.goto('https://www.pokemoncenter-online.com/login/', { waitUntil: 'networkidle2', timeout: 60000 });
 
-    await pokemonPage.evaluate((scrollValue) => {
-      window.scrollBy(0, scrollValue);
-    }, Math.random() * 40);
+      logger.info('已打开 Pokemon Center 网站');
 
-    await simulatePageInput(pokemonPage, '#login-form-regist-email', accountData.account, Math.random() * 80);
-    logger.info(`已输入账号: ${accountData.account}`);
+      await pokemonPage.evaluate((scrollValue) => {
+        window.scrollBy(0, scrollValue);
+      }, Math.random() * 40);
 
-    // 等待并点击注册按钮
-    await simulatePageClick(pokemonPage, '#form2Button', Math.random() * 100);
-    logger.info('已点击注册按钮');
+      await simulatePageInput(pokemonPage, '#login-form-regist-email', accountData.account, Math.random() * 80);
+      logger.info(`已输入账号: ${accountData.account}`);
 
-    // 等待页面跳转到确认页面
-    await pokemonPage.waitForNavigation({ timeout: 60000 }); // 等待页面跳转
+      // 等待并点击注册按钮
+      await simulatePageClick(pokemonPage, '#form2Button', Math.random() * 100);
+      logger.info('已点击注册按钮');
 
-    // 检查是否到达预期的确认页面
-    const currentUrl = pokemonPage.url();
-    if (!currentUrl.includes('temporary-customer-confirm')) {
-      throw new Error(`未跳转到预期的确认页面，当前URL: ${currentUrl}`);
+      // 等待页面跳转到确认页面
+      await pokemonPage.waitForNavigation({ timeout: 60000 }); // 等待页面跳转
+
+      // 检查是否到达预期的确认页面
+      const currentUrl = pokemonPage.url();
+      if (!currentUrl.includes('temporary-customer-confirm')) {
+        throw new Error(`未跳转到预期的确认页面，当前URL: ${currentUrl}`);
+      }
+
+      logger.info('已跳转到临时客户确认页面');
+
+      // 等待页面元素加载
+      await pokemonPage.waitForSelector('input[type="email"][name="email"]', { visible: true, timeout: 10000 });
+
+      // 获取邮箱输入框的值并验证
+      const emailValue = await pokemonPage.$eval('input[type="email"][name="email"]', el => el.value);
+
+      if (emailValue !== accountData.account) {
+        throw new Error(`邮箱值不匹配，期望: ${accountData.account}, 实际: ${emailValue}`);
+      }
+
+      logger.info(`邮箱值验证成功: ${emailValue}`);
+
+      await pokemonPage.evaluate((scrollValue) => {
+        window.scrollBy(0, scrollValue);
+      }, Math.random() * 30);
+
+      // 等待并点击发送确认邮件按钮
+      await simulatePageClick(pokemonPage, '#send-confirmation-email', Math.random() * 100);
+
+      // 等待 REGISTER_EVENT 事件触发
+      logger.info('已点击发送确认邮件按钮，等待 REGISTER_EVENT 事件...');
+
+      await waitForRegisterEmail(browser, pokemonPage, null, accountData);
     }
-
-    logger.info('已跳转到临时客户确认页面');
-
-    // 等待页面元素加载
-    await pokemonPage.waitForSelector('input[type="email"][name="email"]', { visible: true, timeout: 10000 });
-
-    // 获取邮箱输入框的值并验证
-    const emailValue = await pokemonPage.$eval('input[type="email"][name="email"]', el => el.value);
-
-    if (emailValue !== accountData.account) {
-      throw new Error(`邮箱值不匹配，期望: ${accountData.account}, 实际: ${emailValue}`);
-    }
-
-    logger.info(`邮箱值验证成功: ${emailValue}`);
-
-    await pokemonPage.evaluate((scrollValue) => {
-      window.scrollBy(0, scrollValue);
-    }, Math.random() * 30);
-
-    // 等待并点击发送确认邮件按钮
-    await simulatePageClick(pokemonPage, '#send-confirmation-email', Math.random() * 100);
-
-    // 等待 REGISTER_EVENT 事件触发
-    logger.info('已点击发送确认邮件按钮，等待 REGISTER_EVENT 事件...');
-
-    await waitForRegisterEmail(browser, pokemonPage, accountData);
   } catch (error) {
     throw error;
   } finally {
@@ -226,43 +271,9 @@ async function actualRegisterLogic(accountData) {
   }
 }
 
-async function waitForRegisterEmail(browser, pokemonPage, accountData) {
-  // 首先从主进程获取数据库中是否已收到最新的注册链接
-  const checkNewestUrlPromise = new Promise((resolve) => {
-    // 发送请求获取最新注册链接
-    let timeoutId;
-    const handleResponse = (msg) => {
-      if (msg.type === 'NEWEST_REGISTER_URL_RESPONSE') {
-        clearTimeout(timeoutId);
-        process.removeListener('message', handleResponse);
-        resolve(msg.data?.url);
-      }
-    };
-
-    process.on('message', handleResponse);
-
-    // 设置短超时，如果主进程没有响应，继续等待邮箱
-    timeoutId = setTimeout(() => {
-      process.removeListener('message', handleResponse);
-      resolve(null); // 超时则返回 null
-    }, 5000); // 5秒超时
-
-    process.send({
-      type: 'GET_NEWEST_REGISTER_URL',
-      data: {
-        account: accountData.account
-      }
-    });
-  });
-
+async function waitForRegisterEmail(browser, pokemonPage, registerUrl, accountData) {
   try {
-    let registerUrl = await checkNewestUrlPromise;
-
-    if (registerUrl) {
-      logger.info(`从数据库获取到最新的注册链接: ${registerUrl}`);
-    } else {
-      logger.info('数据库中未找到注册链接，开始监听邮箱...');
-
+    if (!registerUrl) {
       // 如果数据库中没有找到注册链接，则创建 Promise 监听邮箱事件
       const registerEventPromise = new Promise((resolve, reject) => {
         let timeoutId;
@@ -284,7 +295,7 @@ async function waitForRegisterEmail(browser, pokemonPage, accountData) {
           // 在超时情况下也要移除事件监听器
           process.removeListener('message', handleMessage);
           reject(new Error('等待 REGISTER_EVENT 事件超时'));
-        }, 3300000); // 55分钟超时
+        }, config.register.timeOfListemRegisterUrl * 60 * 1000); // 60分钟超时
 
         process.on('message', handleMessage);
       });
@@ -318,7 +329,7 @@ async function waitForRegisterEmail(browser, pokemonPage, accountData) {
 async function continueRegister(browser, registerUrl, accountData) {
   // 打开新的页面并访问注册链接
   const registerPage = await browser.newPage();
-  await registerPage.goto(registerUrl, { visible: true, waitUntil: 'networkidle2' });
+  await registerPage.goto(registerUrl, { waitUntil: 'networkidle2', timeout: 60000 });
 
   logger.info(`已打开注册链接: ${registerUrl}`);
 
@@ -387,16 +398,25 @@ async function continueRegister(browser, registerUrl, accountData) {
 
   await waitForNextOperation();
 
-  // 填写地址信息
-  // 市区町村 请输入全角12字符以内。
-  const city = '墨田区吾妻橋'; // 示例数据
-  await simulatePageInput(registerPage, '#registration-form-address-level2', city, (Math.random() * 100) + 20);
-  logger.info(`已输入市区町村: ${city}`);
+  const autoPrefecture = await registerPage.$eval('#registration-form-address-level1', el => el.value);
+  const autoCity = await registerPage.$eval('#registration-form-address-level2', el => el.value);
+
+  logger.info(`自动填充的都道府県: ${autoPrefecture}`);
+  logger.info(`自动填充的市区町村: ${autoCity}`);
+
+  // TODO: 填写地址信息
+
+  // 市区町村 请输入全角12字符以内。（输入邮编后会自动填充）
+  // const city = ''; //
+  // await simulatePageInput(registerPage, '#registration-form-address-level2', city, (Math.random() * 100) + 20);
+  // logger.info(`已输入市区町村: ${city}`);
 
   // 番地（门牌号）请输入全角16字符以内。如果地址中没有门牌号，请输入“门牌号无”。
-  const houseNumber = '2-8';// || '门牌号无';
+  const houseNumber = '2-8' || '番地なし';
   await simulatePageInput(registerPage, '#registration-form-address-line1', houseNumber, (Math.random() * 100) + 20);
   logger.info(`已输入番地: ${houseNumber}`);
+
+  await waitForNextOperation();
 
   // 建物名・部屋番号（可选） 请输入16个全角字符以内。
   const building = 'コーポウエダ201（d2293)';
@@ -435,12 +455,12 @@ async function continueRegister(browser, registerUrl, accountData) {
     logger.info('已勾选条款协议');
   }
 
-  // await registerPage.waitForSelector('#privacyPolicy', { visible: true, timeout: 10000 });
-  // await waitForNextOperation();
-  // if (!(await registerPage.$eval('#privacyPolicy', el => el.checked))) {
-  //   await registerPage.click('#privacyPolicy');
-  //   logger.info('已勾选隐私政策');
-  // }
+  await registerPage.waitForSelector('#privacyPolicy', { visible: true, timeout: 10000 });
+  await waitForNextOperation();
+  if (!(await registerPage.$eval('#privacyPolicy', el => el.checked))) {
+    await registerPage.click('#privacyPolicy');
+    logger.info('已勾选隐私政策');
+  }
 
   await waitForNextOperation();
 
@@ -452,11 +472,9 @@ async function continueRegister(browser, registerUrl, accountData) {
   await sleep(Math.floor(Math.random() * 1000) + 500);
 
   // 注册按钮
-  await registerPage.waitForSelector('#registration_button', { visible: true, timeout: 10000 });
-  await registerPage.hover('#registration_button');
-
   // await simulatePageClick(registerPage, '#registration_button', Math.random() * 100);
 
+  // TODO: 注册完成
   // 关闭页面
   // await registerPage.close();
   await sleep(2000000);
@@ -484,7 +502,8 @@ async function simulateRegister() {
 
         // 根据错误类型确定状态值
         const isErrorExpired = error.message.includes('注册链接已过期');
-        const status = isErrorExpired ? 0 : 2; // 注册链接过期则状态设为0，其他错误设为2
+        const isTimeout = error.name === 'TimeoutError';
+        const status = (isErrorExpired || isTimeout) ? 0 : 2; // 注册链接过期则状态设为0，其他错误设为2
 
         // 发送错误信息给主进程，以便写入数据库 Account 的 reason 字段
         process.send({
