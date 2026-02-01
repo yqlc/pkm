@@ -23,6 +23,7 @@ const EmailLog = sequelize.define('EmailLog', {
 });
 
 // 定义 Account 表
+// 注意：修改字段时，需要同步调整 updateOnDuplicate 中的字段
 const Account = sequelize.define('Account', {
   id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
   fingerprintId: {
@@ -54,7 +55,11 @@ const Account = sequelize.define('Account', {
     field: 'zip_code',
   },
   address: DataTypes.STRING,
-  registered: { type: DataTypes.BOOLEAN, defaultValue: false },
+  status: {
+    type: DataTypes.INTEGER,
+    defaultValue: 0, // 0: 新导入, 1: 已注册, 2: 注册失败, 3: 账号异常
+    comment: '状态: 0-新导入, 1-已注册, 2-注册失败, 3-账号异常'
+  },
   reason: DataTypes.STRING,
 }, {
   timestamps: true,

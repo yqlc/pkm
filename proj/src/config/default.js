@@ -4,10 +4,12 @@ require('dotenv').config({
   path: path.resolve(__dirname, '.env')
 });
 
+const rootDir = path.resolve(__dirname, '../');
+
 module.exports = {
   // 数据库配置
   db: {
-    storage: './assets/pkm.sqlite',
+    storage: path.join(rootDir, 'assets/pkm.sqlite'),
     encryptionKey: process.env.DB_ENCRYPTION_KEY // 如使用加密数据库，请设置此项
   },
   // 邮箱监控配置
@@ -19,6 +21,11 @@ module.exports = {
     tls: true,
   },
   register: {
-    excelFilePath: process.env.REGISTER_EXCEL_FILE_PATH || './assets/accounts.xlsx'
+    excelFilePath: path.join(rootDir, process.env.REGISTER_EXCEL_FILE_PATH || 'assets/accounts.xlsx')
+  },
+  browser: {
+    fingerprintDir: path.join(rootDir, 'assets/fingerprints'), // 浏览器指纹数据目录
+    executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', // 指定浏览器可执行文件路径
+    userDataBaseDir: path.join(rootDir, 'assets/browserData'), // 浏览器用户数据目录
   }
 };
