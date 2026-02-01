@@ -58,7 +58,7 @@ function parseAccountsFromXlsx(filePath) {
   let rowIndex = 4;
 
   while (true) {
-    const accountCell = sheet[`D${rowIndex}`];
+    const accountCell = sheet[`H${rowIndex}`];
     if (!accountCell || !accountCell.v) break;
 
     const birthdayRaw = sheet[`J${rowIndex}`]?.v;
@@ -411,17 +411,19 @@ async function continueRegister(browser, registerUrl, accountData) {
   // await simulatePageInput(registerPage, '#registration-form-address-level2', city, (Math.random() * 100) + 20);
   // logger.info(`已输入市区町村: ${city}`);
 
-  // 番地（门牌号）请输入全角16字符以内。如果地址中没有门牌号，请输入“门牌号无”。
-  const houseNumber = '2-8' || '番地なし';
+  // 番地（门牌号）请输入全角16字符以内。如果地址中没有门牌号，请输入“无门牌号”。
+  const houseNumber = '番地なし';
   await simulatePageInput(registerPage, '#registration-form-address-line1', houseNumber, (Math.random() * 100) + 20);
   logger.info(`已输入番地: ${houseNumber}`);
 
+  /*
   await waitForNextOperation();
 
   // 建物名・部屋番号（可选） 请输入16个全角字符以内。
-  const building = 'コーポウエダ201（d2293)';
+  const building = ''; // コーポウエダ201（d2293)
   await simulatePageInput(registerPage, '#registration-form-address-line2', building, (Math.random() * 100) + 20);
   logger.info(`已输入建物名・部屋番号: ${building}`);
+  */
 
   // 联系电话 请输入半角数字、“-”符号以内14字符。
   const phone = accountData.phone || '0900000000';
