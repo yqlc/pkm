@@ -29,9 +29,6 @@ async function startEmailWorker(eventBus, logger, initialUid) {
           parsedType: emailData.type,
           parsedResult: emailData.result,
         });
-
-        // B. 广播事件 (供注册模块监听)
-        eventBus.emit('EMAIL_EVENT', emailData);
       } catch (err) {
         if (err.name === 'SequelizeUniqueConstraintError') {
           logger.warn(`重复邮件 UID ${emailData.uid}，忽略`);
@@ -39,6 +36,8 @@ async function startEmailWorker(eventBus, logger, initialUid) {
           logger.error(`数据库写入失败: ${err.message}`);
         }
       }
+
+      eventBus.emit('EMAIL_EVENT', emailData);
     }
   });
 

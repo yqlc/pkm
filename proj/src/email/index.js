@@ -228,16 +228,17 @@ function analyzeEmailContent(receiveDate, content) {
 
 // IPC
 process.on('message', (msg) => {
-  if (msg.type === 'INIT_UID') {
+  switch (msg.type) {
+  case 'INIT_UID':
     lastProcessedUID = msg.uid || 0;
     start();
-  }
-
-  if (msg.type === 'STOP') {
+    break;
+  case 'STOP':
     logger.warn('收到 STOP');
     stopped = true;
     abortWait();
     if (client) shutdownClient(client);
+    break;
   }
 });
 

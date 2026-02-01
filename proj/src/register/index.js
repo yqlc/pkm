@@ -404,6 +404,8 @@ async function continueRegister(browser, registerUrl, accountData) {
   logger.info(`自动填充的都道府県: ${autoPrefecture}`);
   logger.info(`自动填充的市区町村: ${autoCity}`);
 
+  await waitForNextOperation();
+
   // TODO: 填写地址信息
 
   // 市区町村 请输入全角12字符以内。（输入邮编后会自动填充）

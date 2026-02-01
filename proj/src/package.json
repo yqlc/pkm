@@ -6,7 +6,8 @@
   "license": "UNLICENSED",
   "scripts": {
     "start": "node app.js",
-    "dev": "nodemon app.js",
+    "dev": "node app.js",
+    "devmon": "nodemon app.js",
     "build": "node build.js",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix"

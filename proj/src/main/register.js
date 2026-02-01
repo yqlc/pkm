@@ -54,6 +54,19 @@ async function startRegisterWorker(eventBus, logger) {
         sendRegisterEvent(registerWorker, logger);
       }, 3000);
       break;
+    case 'REGISTER_ACCOUNT_SUCCESS':
+      // 处理账号注册成功，将状态改为1
+      try {
+        const { account } = msg.data;
+        await Account.update(
+          { status: 1 },
+          { where: { account: account } }
+        );
+        logger.info(`账号 ${account} 注册成功，状态已更新为1`);
+      } catch (err) {
+        logger.error(`更新账号状态失败: ${err.message}`);
+      }
+      break;
     case 'REGISTER_ACCOUNT_ERROR':
       // 处理账号注册错误，将错误信息写入数据库 Account
       try {
@@ -136,9 +149,14 @@ async function startRegisterWorker(eventBus, logger) {
   });
 
   eventBus.on('EMAIL_EVENT', (emailData) => {
-    if (emailData && emailData.result && emailData.result.type === 'register_url') {
+    if (emailData && emailData.type === 'register_url') {
       // 这里可以根据 emailData 内容决定是否发送给注册子进程
-      registerWorker.send({ type: 'REGISTER_EVENT', data: emailData });
+      registerWorker.send({
+        type: 'REGISTER_EVENT',
+        data: {
+          url: emailData.result
+        }
+      });
     }
   });
 
