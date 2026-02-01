@@ -26,7 +26,7 @@ async function initSystem() {
     startEmailWorker(eventBus, mainLogger, lastUid);
 
     // 3. 启动注册子进程
-    startRegisterWorker();
+    startRegisterWorker(eventBus, mainLogger);
 
     // 4. 初始化其他模块 (暂时留空)
 

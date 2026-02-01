@@ -1,7 +1,7 @@
 const path = require('path');
 const { fork } = require('child_process');
 const config = require('../config/default');
-const { Account } = require('../database');
+const { Account, EmailLog } = require('../database');
 
 async function startRegisterWorker(eventBus, logger) {
   eventBus = eventBus || require('../app').eventBus;
@@ -55,13 +55,13 @@ async function startRegisterWorker(eventBus, logger) {
       }, 3000);
       break;
     case 'REGISTER_ACCOUNT_ERROR':
-      // 处理账号注册错误，将错误信息写入数据库 Account 的 reason 字段，并更新状态为注册失败
+      // 处理账号注册错误，将错误信息写入数据库 Account
       try {
-        const { account, reason } = msg.data;
+        const { account, reason, status } = msg.data;
         await Account.update(
           {
             reason: reason,
-            status: 2  // 2 表示注册失败
+            status: status
           },
           { where: { account: account } }
         );
@@ -70,13 +70,63 @@ async function startRegisterWorker(eventBus, logger) {
         logger.error(`更新账号错误信息失败: ${err.message}`);
       }
       break;
+    case 'GET_NEWEST_REGISTER_URL':
+      try {
+        const { account } = msg.data;
+        // 从 EmailLogs 表中读取最新账号的注册信息
+        const latestEmailLog = await EmailLog.findOne({
+          where: {
+            recipient: account,
+            parsedType: 'register_url'
+          },
+          order: [['createdAt', 'DESC']]
+        });
+
+        if (latestEmailLog && latestEmailLog.parsedResult) {
+          registerWorker.send({
+            type: 'NEWEST_REGISTER_URL_RESPONSE',
+            data: {
+              url: latestEmailLog.parsedResult,
+              createdAt: latestEmailLog.createdAt
+            }
+          });
+        } else {
+          registerWorker.send({
+            type: 'NEWEST_REGISTER_URL_RESPONSE',
+            data: null
+          });
+        }
+      } catch (err) {
+        logger.error(`获取最新注册链接失败: ${err.message}`);
+        registerWorker.send({
+          type: 'NEWEST_REGISTER_URL_RESPONSE',
+          data: null
+        });
+      }
+      break;
     default:
       break;
     }
   });
 
   // 守护进程：子进程挂了自动重启
+  let registerShuttingDown = false;
+
+  // 监听主进程退出信号
+  process.on('SIGINT', () => {
+    registerShuttingDown = true;
+  });
+
+  process.on('SIGTERM', () => {
+    registerShuttingDown = true;
+  });
+
   registerWorker.on('exit', (code) => {
+    if (registerShuttingDown) {
+      logger.info('主进程正在退出，不重启注册子进程');
+      return;
+    }
+
     if (code !== 0) {
       logger.error(`注册子进程异常退出 (Code ${code})，3秒后重启...`);
       setTimeout(() => {

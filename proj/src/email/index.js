@@ -157,8 +157,8 @@ async function fetchAndProcessEmails(imap) {
   if (lastProcessedUID > 0) {
     criteria = { uid: `${lastProcessedUID + 1}:*` };
   } else {
-    // 首次只搜最近 30 分钟
-    const sinceDate = dayjs().subtract(30, 'minute').toDate();
+    // 首次只搜最近 60 分钟
+    const sinceDate = dayjs().subtract(60, 'minute').toDate();
     criteria = { since: sinceDate };
     logger.info(`首次扫描，查找 ${sinceDate.toLocaleString()} 之后的邮件`);
   }
@@ -178,15 +178,22 @@ async function fetchAndProcessEmails(imap) {
     }
 
     const fromAddress = msg.envelope.from[0].address;
-    logger.info(`命中目标邮件 UID:${msgUid} 主题: ${msg.envelope.subject} 来自: ${fromAddress}`);
+    const toAddress = msg.envelope.to[0].address;
+    logger.info(`命中目标邮件 UID:${msgUid} 主题: ${msg.envelope.subject} 来自: ${fromAddress} 收件人: ${toAddress}`);
     try {
       const parsed = await simpleParser(msg.source);
-      const res = analyzeEmailContent(parsed.text || parsed.html);
+      const res = analyzeEmailContent(msg.envelope.date, parsed.text || parsed.html);
       if (res) {
         logger.info(`解析成功 UID:${msg.uid} 主题:${parsed.subject} 结果: ${JSON.stringify(res)}`);
         process.send({
           type: 'EMAIL_FOUND',
-          data: { uid: msgUid, ...res }
+          data: {
+            uid: msgUid,
+            sender: fromAddress,
+            subject: parsed.subject,
+            recipient: toAddress,
+            ...res,
+          }
         });
       }
     } catch (e) {
@@ -195,15 +202,27 @@ async function fetchAndProcessEmails(imap) {
   }
 }
 
-function analyzeEmailContent(content) {
+function analyzeEmailContent(receiveDate, content) {
   if (!content) return null;
-  const code = content.match(/验证码[：:]\s*(\d{6})/)?.[1];
-  const url = content.match(/(https:\/\/www\.pokemoncenter-online\.com\/new-customer\?token=[^\s"'<>]+)/)?.[1];
+  // 匹配包含 /new-customer/ 或 /new-customer? 的 URL
+  const url = content.match(/(https:\/\/www\.pokemoncenter-online\.com\/new-customer[\/\?][^\s"'<>]*)/)?.[1];
   if (url) {
-    return { type: 'register_url', url };
+    // 检查 URL 是否在60分钟内有效
+    const now = new Date();
+    const receivedTime = new Date(receiveDate);
+    const timeDiffInMinutes = (now - receivedTime) / (1000 * 60);
+
+    if (timeDiffInMinutes <= 60) {
+      return { type: 'register_url', result: url };
+    } else {
+      // console.log(`URL 已超过60分钟有效期，接收时间: ${receivedTime}, 当前时间: ${now}`);
+      return null;
+    }
   }
 
-  return code || url ? { code, url } : null;
+  const code = content.match(/验证码[：:]\s*(\d{6})/)?.[1];
+
+  return code ? { type: 'login_captcha', result: code } : null;
 }
 
 // IPC

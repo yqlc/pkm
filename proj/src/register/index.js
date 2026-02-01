@@ -5,7 +5,7 @@ const xlsx = require('xlsx');
 const path = require('path');
 const fs = require('fs');
 const puppeteer = require('puppeteer-core');
-const { sleep } = require('../utils');
+const { sleep, waitForNextOperation, simulatePageClick, simulatePageInput, simulatePageSelect } = require('../utils');
 
 const logger = createLogger('REGISTER');
 
@@ -172,32 +172,19 @@ async function actualRegisterLogic(accountData) {
 
     logger.info('已打开 Pokemon Center 网站');
 
-    // 等待页面加载完成
-    await pokemonPage.waitForSelector('#login-form-regist-email', { timeout: 10000 });
+    await pokemonPage.evaluate((scrollValue) => {
+      window.scrollBy(0, scrollValue);
+    }, Math.random() * 40);
 
-    // 聚焦到指定的输入框
-    await pokemonPage.focus('#login-form-regist-email');
-
-    // 输入账号，模拟人为输入速度
-    await pokemonPage.type('#login-form-regist-email', accountData.account, {
-      delay: Math.floor(Math.random() * 100) + 50  // 随机延迟50-150毫秒
-    });
-
+    await simulatePageInput(pokemonPage, '#login-form-regist-email', accountData.account, Math.random() * 80);
     logger.info(`已输入账号: ${accountData.account}`);
 
     // 等待并点击注册按钮
-    await pokemonPage.waitForSelector('#form2Button', { timeout: 10000 });
-
-    // 添加随机等待时间，模拟人为操作
-    let randomDelay = Math.floor(Math.random() * 2000) + 1000; // 随机等待1-3秒
-    await sleep(randomDelay);
-
-    await pokemonPage.click('#form2Button');
-
+    await simulatePageClick(pokemonPage, '#form2Button', Math.random() * 100);
     logger.info('已点击注册按钮');
 
     // 等待页面跳转到确认页面
-    await pokemonPage.waitForNavigation({ timeout: 15000 }); // 等待页面跳转
+    await pokemonPage.waitForNavigation({ timeout: 60000 }); // 等待页面跳转
 
     // 检查是否到达预期的确认页面
     const currentUrl = pokemonPage.url();
@@ -208,7 +195,7 @@ async function actualRegisterLogic(accountData) {
     logger.info('已跳转到临时客户确认页面');
 
     // 等待页面元素加载
-    await pokemonPage.waitForSelector('input[type="email"][name="email"]', { timeout: 10000 });
+    await pokemonPage.waitForSelector('input[type="email"][name="email"]', { visible: true, timeout: 10000 });
 
     // 获取邮箱输入框的值并验证
     const emailValue = await pokemonPage.$eval('input[type="email"][name="email"]', el => el.value);
@@ -219,66 +206,17 @@ async function actualRegisterLogic(accountData) {
 
     logger.info(`邮箱值验证成功: ${emailValue}`);
 
+    await pokemonPage.evaluate((scrollValue) => {
+      window.scrollBy(0, scrollValue);
+    }, Math.random() * 30);
+
     // 等待并点击发送确认邮件按钮
-    await pokemonPage.waitForSelector('#send-confirmation-email', { timeout: 10000 });
-
-    randomDelay = Math.floor(Math.random() * 2000) + 1000; // 随机等待1-3秒
-    await sleep(randomDelay);
-
-    await pokemonPage.click('#send-confirmation-email');
+    await simulatePageClick(pokemonPage, '#send-confirmation-email', Math.random() * 100);
 
     // 等待 REGISTER_EVENT 事件触发
     logger.info('已点击发送确认邮件按钮，等待 REGISTER_EVENT 事件...');
 
-    // 创建 Promise 来等待事件
-    let handleMessage;
-    let timeoutId;
-
-    const timeoutPromise = new Promise((_, reject) => {
-      timeoutId = setTimeout(() => {
-        // 在超时情况下也要移除事件监听器
-        process.removeListener('message', handleMessage);
-        reject(new Error('等待 REGISTER_EVENT 事件超时'));
-      }, 3300000); // 55分钟超时
-    });
-
-    const registerEventPromise = new Promise((resolve, reject) => {
-      handleMessage = (msg) => {
-        if (msg.type === 'REGISTER_EVENT') {
-          // 清除超时定时器
-          clearTimeout(timeoutId);
-          process.removeListener('message', handleMessage);
-
-          if (msg.data?.url) {
-            resolve(msg.data.url);
-          } else {
-            reject(new Error('REGISTER_EVENT 事件数据无效'));
-          }
-        }
-      };
-
-      process.on('message', handleMessage);
-    });
-
-    try {
-      const registerUrl = await Promise.race([registerEventPromise, timeoutPromise]);
-      logger.info(`收到注册链接: ${registerUrl}`);
-
-      // 随机处理界面关闭
-      const closeRandomly = Math.random() > 0.5;
-      if (closeRandomly) {
-        await pokemonPage.close();
-      }
-
-      // 随机等待一段时间，模拟人为操作
-      const waitTime = Math.floor(Math.random() * 5000) + 3000;
-      await sleep(waitTime);
-
-      // 继续后续注册流程
-      await continueRegister(browser, registerUrl, accountData);
-    } catch (error) {
-      throw error;
-    }
+    await waitForRegisterEmail(browser, pokemonPage, accountData);
   } catch (error) {
     throw error;
   } finally {
@@ -288,17 +226,240 @@ async function actualRegisterLogic(accountData) {
   }
 }
 
+async function waitForRegisterEmail(browser, pokemonPage, accountData) {
+  // 首先从主进程获取数据库中是否已收到最新的注册链接
+  const checkNewestUrlPromise = new Promise((resolve) => {
+    // 发送请求获取最新注册链接
+    let timeoutId;
+    const handleResponse = (msg) => {
+      if (msg.type === 'NEWEST_REGISTER_URL_RESPONSE') {
+        clearTimeout(timeoutId);
+        process.removeListener('message', handleResponse);
+        resolve(msg.data?.url);
+      }
+    };
+
+    process.on('message', handleResponse);
+
+    // 设置短超时，如果主进程没有响应，继续等待邮箱
+    timeoutId = setTimeout(() => {
+      process.removeListener('message', handleResponse);
+      resolve(null); // 超时则返回 null
+    }, 5000); // 5秒超时
+
+    process.send({
+      type: 'GET_NEWEST_REGISTER_URL',
+      data: {
+        account: accountData.account
+      }
+    });
+  });
+
+  try {
+    let registerUrl = await checkNewestUrlPromise;
+
+    if (registerUrl) {
+      logger.info(`从数据库获取到最新的注册链接: ${registerUrl}`);
+    } else {
+      logger.info('数据库中未找到注册链接，开始监听邮箱...');
+
+      // 如果数据库中没有找到注册链接，则创建 Promise 监听邮箱事件
+      const registerEventPromise = new Promise((resolve, reject) => {
+        let timeoutId;
+        const handleMessage = (msg) => {
+          if (msg.type === 'REGISTER_EVENT') {
+            // 清除超时定时器
+            clearTimeout(timeoutId);
+            process.removeListener('message', handleMessage);
+
+            if (msg.data?.url) {
+              resolve(msg.data.url);
+            } else {
+              reject(new Error('REGISTER_EVENT 事件数据无效'));
+            }
+          }
+        };
+
+        timeoutId = setTimeout(() => {
+          // 在超时情况下也要移除事件监听器
+          process.removeListener('message', handleMessage);
+          reject(new Error('等待 REGISTER_EVENT 事件超时'));
+        }, 3300000); // 55分钟超时
+
+        process.on('message', handleMessage);
+      });
+
+      registerUrl = await registerEventPromise;
+    }
+
+    if (!registerUrl) {
+      throw new Error('注册链接接收超时');
+    }
+
+    logger.info(`收到注册链接: ${registerUrl}`);
+
+    // 随机处理界面关闭
+    const closeRandomly = Math.random() > 0.5;
+    if (closeRandomly && pokemonPage) {
+      await pokemonPage.close();
+    }
+
+    // 随机等待一段时间，模拟人为操作
+    const waitTime = Math.floor(Math.random() * 5000) + 1000;
+    await sleep(waitTime);
+
+    // 继续后续注册流程
+    await continueRegister(browser, registerUrl, accountData);
+  } catch (error) {
+    throw error;
+  }
+}
+
 async function continueRegister(browser, registerUrl, accountData) {
   // 打开新的页面并访问注册链接
   const registerPage = await browser.newPage();
-  await registerPage.goto(registerUrl, { waitUntil: 'networkidle2' });
+  await registerPage.goto(registerUrl, { visible: true, waitUntil: 'networkidle2' });
 
   logger.info(`已打开注册链接: ${registerUrl}`);
 
-  // 在这里可以继续处理注册流程
+  // 检查是否被重定向到错误页面
+  const currentUrl = registerPage.url();
+  if (/https:\/\/www\.pokemoncenter-online\.com\/error.*message=error\.message\.account\.invalid.*/.test(currentUrl)) {
+    throw new Error('注册链接已过期');
+  }
+
+  // 等待页面元素加载
+  await registerPage.waitForSelector('body', { visible: true, timeout: 10000 });
+
+  // 等待并输入昵称
+  const nnmae = accountData.romanName || '';
+  await simulatePageInput(registerPage, '#registration-form-nname', nnmae, (Math.random() * 100) + 20);
+  logger.info(`已输入昵称: ${nnmae}`);
+
+  // 等待并输入姓名
+  const fname = accountData.jpName || '';
+  await simulatePageInput(registerPage, '#registration-form-fname', fname, (Math.random() * 100) + 20);
+  logger.info(`已输入姓名: ${fname}`);
+
+  // 等待并输入平假名
+  const kana = accountData.fullwidthName || '';
+  await simulatePageInput(registerPage, '#registration-form-kana', kana, (Math.random() * 100) + 20);
+  logger.info(`已输入平假名: ${kana}`);
+
+  // 处理生日信息
+  if (accountData.birthday) {
+    const birthday = new Date(accountData.birthday);
+    const year = birthday.getFullYear();
+    const month = String(birthday.getMonth() + 1).padStart(2, '0'); // 月份从0开始，需要加1
+    const day = String(birthday.getDate()).padStart(2, '0');
+
+    // 选择年份
+    await simulatePageSelect(registerPage, '#registration-form-birthdayyear', String(year), (Math.random() * 100) + 20);
+    logger.info(`已选择出生年份: ${year}`);
+
+    // 选择月份
+    await simulatePageSelect(registerPage, '#registration-form-birthdaymonth', month, (Math.random() * 100) + 20);
+    logger.info(`已选择出生月份: ${month}`);
+
+    // 选择日期
+    await simulatePageSelect(registerPage, '#registration-form-birthdayday', day, (Math.random() * 100) + 20);
+    logger.info(`已选择出生日期: ${day}`);
+  }
+
+  await waitForNextOperation();
+
+  await registerPage.evaluate((scrollValue) => {
+    window.scrollBy(0, scrollValue);
+  }, (Math.random() * 100) + 200);
+
+  await waitForNextOperation();
+
+  // 填写邮编
+  const zipCode = accountData.zipCode || '';
+  await simulatePageInput(registerPage, '#registration-form-postcode', zipCode, (Math.random() * 100) + 20);
+  logger.info(`已输入邮编: ${zipCode}`);
+
+  await waitForNextOperation();
+
+  await registerPage.evaluate((scrollValue) => {
+    window.scrollBy(0, scrollValue);
+  }, (Math.random() * 100) + 100);
+
+  await waitForNextOperation();
+
+  // 填写地址信息
+  // 市区町村 请输入全角12字符以内。
+  const city = '墨田区吾妻橋'; // 示例数据
+  await simulatePageInput(registerPage, '#registration-form-address-level2', city, (Math.random() * 100) + 20);
+  logger.info(`已输入市区町村: ${city}`);
+
+  // 番地（门牌号）请输入全角16字符以内。如果地址中没有门牌号，请输入“门牌号无”。
+  const houseNumber = '2-8';// || '门牌号无';
+  await simulatePageInput(registerPage, '#registration-form-address-line1', houseNumber, (Math.random() * 100) + 20);
+  logger.info(`已输入番地: ${houseNumber}`);
+
+  // 建物名・部屋番号（可选） 请输入16个全角字符以内。
+  const building = 'コーポウエダ201（d2293)';
+  await simulatePageInput(registerPage, '#registration-form-address-line2', building, (Math.random() * 100) + 20);
+  logger.info(`已输入建物名・部屋番号: ${building}`);
+
+  // 联系电话 请输入半角数字、“-”符号以内14字符。
+  const phone = accountData.phone || '0900000000';
+  await simulatePageInput(registerPage, 'input[name="dwfrm_profile_customer_phone"]', phone, (Math.random() * 100) + 20);
+  logger.info(`已输入联系电话: ${phone}`);
+
+  // 填写密码 请使用至少3种半角英数字及符号，且长度至少为8个字符来创建密码。
+  const password = accountData.password;
+  if (!password || password.length < 8) {
+    throw new Error('密码长度不足8位');
+  }
+  await simulatePageInput(registerPage, 'input[name="dwfrm_profile_login_password"]', password, (Math.random() * 100) + 20);
+  logger.info(`已输入密码: ${password}`);
+
+  await simulatePageInput(registerPage, 'input[name="dwfrm_profile_login_passwordconfirm"]', password, (Math.random() * 100) + 20);
+  logger.info(`已输入确认密码: ${password}`);
+
+  await waitForNextOperation();
+
+  await registerPage.evaluate((scrollValue) => {
+    window.scrollBy(0, scrollValue);
+  }, (Math.random() * 100) + 100);
+
+  await waitForNextOperation();
+
+  // 勾选协议
+  await registerPage.waitForSelector('#terms', { visible: true, timeout: 10000 });
+  await waitForNextOperation();
+  if (!(await registerPage.$eval('#terms', el => el.checked))) {
+    await registerPage.click('#terms');
+    logger.info('已勾选条款协议');
+  }
+
+  // await registerPage.waitForSelector('#privacyPolicy', { visible: true, timeout: 10000 });
+  // await waitForNextOperation();
+  // if (!(await registerPage.$eval('#privacyPolicy', el => el.checked))) {
+  //   await registerPage.click('#privacyPolicy');
+  //   logger.info('已勾选隐私政策');
+  // }
+
+  await waitForNextOperation();
+
+  await registerPage.evaluate((scrollValue) => {
+    window.scrollBy(0, scrollValue);
+  }, (Math.random() * 50) + 20);
+
+  // 随机等待一段时间
+  await sleep(Math.floor(Math.random() * 1000) + 500);
+
+  // 注册按钮
+  await registerPage.waitForSelector('#registration_button', { visible: true, timeout: 10000 });
+  await registerPage.hover('#registration_button');
+
+  // await simulatePageClick(registerPage, '#registration_button', Math.random() * 100);
 
   // 关闭页面
-  await registerPage.close();
+  // await registerPage.close();
+  await sleep(2000000);
 }
 
 async function simulateRegister() {
@@ -320,12 +481,18 @@ async function simulateRegister() {
         logger.info(`账号 ${accountData.account} 注册逻辑完成`);
       } catch (error) {
         logger.error(`处理账号 ${accountData.account} 时出错: ${error.message}`);
+
+        // 根据错误类型确定状态值
+        const isErrorExpired = error.message.includes('注册链接已过期');
+        const status = isErrorExpired ? 0 : 2; // 注册链接过期则状态设为0，其他错误设为2
+
         // 发送错误信息给主进程，以便写入数据库 Account 的 reason 字段
         process.send({
           type: 'REGISTER_ACCOUNT_ERROR',
           data: {
             account: accountData.account,
-            reason: error.message
+            reason: error.message,
+            status: status
           }
         });
       } finally {
