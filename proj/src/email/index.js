@@ -53,7 +53,7 @@ async function start() {
       if (!stopped && generation === myGen) {
         start();
       }
-    }, 5000);
+    }, 5_000);
   });
 
   try {
@@ -63,7 +63,7 @@ async function start() {
   } catch (err) {
     logger.error(`启动失败: ${err.message}`);
     if (!stopped && generation === myGen) {
-      setTimeout(start, 5000);
+      setTimeout(start, 5_000);
     }
   }
 }

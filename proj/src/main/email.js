@@ -66,7 +66,7 @@ async function startEmailWorker(eventBus, logger, initialUid) {
         EmailLog.findOne({ order: [['uid', 'DESC']] }).then(last => {
           startEmailWorker(eventBus, logger, last ? last.uid : 0);
         });
-      }, 3000);
+      }, 3_000);
     }
   });
 }

@@ -50,9 +50,7 @@ async function startRegisterWorker(eventBus, logger) {
       break;
     case 'REGISTER_COMPLETE':
       // 3s 后读取需注册的账号，发送给注册子进程
-      setTimeout(() => {
-        sendRegisterEvent(registerWorker, logger);
-      }, 3000);
+      sendRegisterEvent(registerWorker, logger);
       break;
     case 'REGISTER_ACCOUNT_SUCCESS':
       // 处理账号注册成功，将状态改为1
@@ -144,7 +142,7 @@ async function startRegisterWorker(eventBus, logger) {
       logger.error(`注册子进程异常退出 (Code ${code})，3秒后重启...`);
       setTimeout(() => {
         startRegisterWorker();
-      }, 3000);
+      }, 3_000);
     }
   });
 
