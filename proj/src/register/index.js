@@ -278,12 +278,16 @@ async function waitForRegisterEmail(browser, pokemonPage, registerUrl, accountDa
       const registerEventPromise = new Promise((resolve, reject) => {
         let timeoutId;
         const handleMessage = (msg) => {
-          if (msg.type === 'REGISTER_EVENT') {
+          if (msg.type === 'REGISTER_EVENT'
+            && msg.data?.account === accountData.account) {
+
             // 清除超时定时器
             clearTimeout(timeoutId);
             process.removeListener('message', handleMessage);
 
-            if (msg.data?.url) {
+            if (msg.data?.registered) {
+              resolve(true);
+            } else if (msg.data?.url) {
               resolve(msg.data.url);
             } else {
               reject(new Error('REGISTER_EVENT 事件数据无效'));
@@ -301,6 +305,12 @@ async function waitForRegisterEmail(browser, pokemonPage, registerUrl, accountDa
       });
 
       registerUrl = await registerEventPromise;
+
+      if (registerUrl === true) {
+        await pokemonPage.close();
+        logger.info('该邮箱已注册过了');
+        return;
+      }
     }
 
     if (!registerUrl) {

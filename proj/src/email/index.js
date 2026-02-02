@@ -221,6 +221,11 @@ function analyzeEmailContent(receiveDate, content) {
     }
   }
 
+  const hasRegisted = content.includes('会員登録やメールアドレス変更画面にて入力されたメールアドレスは、既に登録済みです。');
+  if (hasRegisted) {
+    return { type: 'email_registed' };
+  }
+
   const code = content.match(/验证码[：:]\s*(\d{6})/)?.[1];
 
   return code ? { type: 'login_captcha', result: code } : null;

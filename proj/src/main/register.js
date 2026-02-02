@@ -149,14 +149,30 @@ async function startRegisterWorker(eventBus, logger) {
   });
 
   eventBus.on('EMAIL_EVENT', (emailData) => {
-    if (emailData && emailData.type === 'register_url') {
-      // 这里可以根据 emailData 内容决定是否发送给注册子进程
-      registerWorker.send({
-        type: 'REGISTER_EVENT',
-        data: {
-          url: emailData.result
-        }
-      });
+    if (emailData) {
+      switch (emailData.type) {
+      case 'register_url':
+        // 这里可以根据 emailData 内容决定是否发送给注册子进程
+        registerWorker.send({
+          type: 'REGISTER_EVENT',
+          data: {
+            account: emailData.recipient,
+            url: emailData.result
+          }
+        });
+        break;
+      case 'email_registed':
+        registerWorker.send({
+          type: 'REGISTER_EVENT',
+          data: {
+            account: emailData.recipient,
+            registered: true // 表示账号已注册
+          }
+        });
+        break;
+      default:
+        break;
+      }
     }
   });
 
