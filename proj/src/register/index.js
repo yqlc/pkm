@@ -77,7 +77,7 @@ function parseAccountsFromXlsx(filePath) {
           : birthdayRaw.replace(/\//g, '-');
     }
 
-    rows.push({
+    const acc = {
       fingerprintId: sheet[`B${rowIndex}`]?.v ?? null,
       account: sheet[`H${rowIndex}`]?.v,
       password: sheet[`I${rowIndex}`]?.v ?? null,
@@ -88,7 +88,14 @@ function parseAccountsFromXlsx(filePath) {
       romanName: sheet[`N${rowIndex}`]?.v ?? null,
       zipCode: sheet[`V${rowIndex}`]?.v ?? null,
       address: sheet[`W${rowIndex}`]?.v ?? null,
-    });
+    };
+
+    // 如果K列值为1，说明是已注册成功的账号，只需导入即可
+    if (1 == sheet[`K${rowIndex}`]?.v) {
+      acc.status = 1;
+    }
+
+    rows.push(acc);
 
     rowIndex++;
   }
