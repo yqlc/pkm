@@ -56,6 +56,24 @@ async function triggerSendRegisterEmail(browser, logger, accountData) {
   return pokemonPage;
 }
 
+function splitByBrackets(str) {
+  // 匹配中文或英文括号
+  const regex = /(.*?)[（(]([^）)]*)[）)]/;
+  const match = str.match(regex);
+
+  if (match) {
+    return {
+      mainText: match[1].trim(),
+      bracketText: match[2].trim()
+    };
+  }
+
+  return {
+    mainText: str.trim(),
+    bracketText: ''
+  };
+}
+
 async function continueRegister(browser, logger, registerUrl, accountData) {
   // 随机等待一段时间，模拟人为操作
   const waitTime = Math.floor(Math.random() * 5_000) + 1_000;
@@ -140,17 +158,18 @@ async function continueRegister(browser, logger, registerUrl, accountData) {
 
   await waitForNextOperation();
 
-  // TODO: 填写地址信息
-
+  // 填写地址信息
   // 市区町村 请输入全角12字符以内。（输入邮编后会自动填充）
   // const city = ''; //
   // await simulatePageInput(registerPage, '#registration-form-address-level2', city, (Math.random() * 100) + 20);
   // logger.info(`已输入市区町村: ${city}`);
 
-  // 番地（门牌号）请输入全角16字符以内。如果地址中没有门牌号，请输入“无门牌号”。
+  /*
+  // 番地（门牌号）请输入全角16字符以内。如果地址中没有门牌号，请输入“番地なし”。
   const houseNumber = '番地なし';
   await simulatePageInput(registerPage, '#registration-form-address-line1', houseNumber, (Math.random() * 100) + 20);
   logger.info(`已输入番地: ${houseNumber}`);
+  */
 
   /*
   await waitForNextOperation();
@@ -160,6 +179,17 @@ async function continueRegister(browser, logger, registerUrl, accountData) {
   await simulatePageInput(registerPage, '#registration-form-address-line2', building, (Math.random() * 100) + 20);
   logger.info(`已输入建物名・部屋番号: ${building}`);
   */
+
+  const address = accountData.address || '';
+  const { mainText: prefecture, bracketText: building } = splitByBrackets(address);
+
+  await simulatePageInput(registerPage, '#registration-form-address-line1', prefecture, (Math.random() * 100) + 20);
+  logger.info(`已输入番地: ${prefecture}`);
+
+  await waitForNextOperation();
+
+  await simulatePageInput(registerPage, '#registration-form-address-line2', building, (Math.random() * 100) + 20);
+  logger.info(`已输入建物名・部屋番号: ${building}`);
 
   // 联系电话 请输入半角数字、“-”符号以内14字符。
   const phone = accountData.phone || '0900000000';
