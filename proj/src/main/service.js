@@ -136,7 +136,7 @@ async function startExpressService(eventBus, logger) {
           data: { taskId }
         });
 
-        eventBus.emit('modifyPhoneTaskCreated', { taskId, phone });
+        eventBus.emit(MODIFY_MOBILE_EVENT, { type: 'task_created', taskId, phone });
       } catch (error) {
         logger.error(`创建任务时出错: ${error.message}`);
         res.status(500).json({
@@ -179,7 +179,7 @@ async function startExpressService(eventBus, logger) {
           reason: '验证码已接收'
         });
 
-        eventBus.emit('modifyPhoneTaskSubmitted', { taskId, captcha });
+        eventBus.emit(MODIFY_MOBILE_EVENT, { type: 'task_submitted', taskId, captcha });
 
         logger.info(`验证码已接收: taskId=${taskId}, captcha=***`);
 

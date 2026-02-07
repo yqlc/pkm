@@ -4,6 +4,7 @@ const { sequelize, EmailLog } = require('./database');
 const { default: startEmailWorker } = require('./main/email');
 const { default: startRegisterWorker } = require('./main/register');
 const { default: startExpressService } = require('./main/service');
+const { default: startModifyMobileWorker } = require('./main/mobile');
 
 const eventBus = new EventEmitter();
 
@@ -11,6 +12,8 @@ const eventBus = new EventEmitter();
 async function cleanupAndExit(exitCode) {
   try {
     mainLogger.info('开始清理资源...');
+
+    eventBus.emit('MAIN_APP_SHUTDOWN');
 
     // 尝试关闭数据库连接
     await sequelize.close();
@@ -62,6 +65,9 @@ async function initSystem() {
 
     // 4. 启动 Express 服务
     startExpressService(eventBus, mainLogger);
+
+    // 5. 启动修改手机号子进程
+    startModifyMobileWorker(eventBus, mainLogger);
 
     mainLogger.info('系统初始化完成，等待任务...');
 

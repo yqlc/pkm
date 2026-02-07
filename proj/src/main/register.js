@@ -121,19 +121,19 @@ async function startRegisterWorker(eventBus, logger) {
   });
 
   // 守护进程：子进程挂了自动重启
-  let registerShuttingDown = false;
+  let mainAppShuttingDown = false;
 
   // 监听主进程退出信号
   process.on('SIGINT', () => {
-    registerShuttingDown = true;
+    mainAppShuttingDown = true;
   });
 
   process.on('SIGTERM', () => {
-    registerShuttingDown = true;
+    mainAppShuttingDown = true;
   });
 
   registerWorker.on('exit', (code) => {
-    if (registerShuttingDown) {
+    if (mainAppShuttingDown) {
       logger.info('主进程正在退出，不重启注册子进程');
       return;
     }
@@ -141,9 +141,19 @@ async function startRegisterWorker(eventBus, logger) {
     if (code !== 0) {
       logger.error(`注册子进程异常退出 (Code ${code})，3秒后重启...`);
       setTimeout(() => {
-        startRegisterWorker();
+        startRegisterWorker(eventBus, logger);
       }, 3_000);
     }
+  });
+
+  eventBus.on('MAIN_APP_SHUTDOWN', () => {
+    mainAppShuttingDown = true;
+    logger.info('注册子进程收到关闭信号，开始关闭...');
+    if (!registerWorker.connected) {
+      logger.info('注册子进程已关闭');
+      return;
+    }
+    registerWorker.send({ type: 'STOP' });
   });
 
   eventBus.on('EMAIL_EVENT', (emailData) => {

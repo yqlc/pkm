@@ -239,17 +239,22 @@ process.on('message', (msg) => {
     start();
     break;
   case 'STOP':
-    logger.warn('收到 STOP');
-    stopped = true;
-    abortWait();
-    if (client) shutdownClient(client);
+    handleSignal('STOP');
     break;
   }
 });
 
-process.on('SIGINT', async () => {
+async function handleSignal(signal) {
+  logger.warn(`邮件子进程收到 ${signal} 信号，开始清理资源...`);
   stopped = true;
   abortWait();
   if (client) await shutdownClient(client);
   process.exit(0);
+}
+
+const gracefulSignals = ['SIGTERM', 'SIGINT', 'SIGQUIT'];
+gracefulSignals.forEach(signal => {
+  process.on(signal, async () => {
+    await handleSignal(signal);
+  });
 });

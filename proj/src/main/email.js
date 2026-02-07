@@ -42,19 +42,19 @@ async function startEmailWorker(eventBus, logger, initialUid) {
   });
 
   // 守护进程：子进程挂了自动重启
-  let shuttingDown = false;
+  let mainAppShuttingDown = false;
 
   // 监听主进程退出信号
   process.on('SIGINT', () => {
-    shuttingDown = true;
+    mainAppShuttingDown = true;
   });
 
   process.on('SIGTERM', () => {
-    shuttingDown = true;
+    mainAppShuttingDown = true;
   });
 
   emailWorker.on('exit', (code) => {
-    if (shuttingDown) {
+    if (mainAppShuttingDown) {
       logger.info('主进程正在退出，不重启邮箱子进程');
       return;
     }
@@ -68,6 +68,16 @@ async function startEmailWorker(eventBus, logger, initialUid) {
         });
       }, 3_000);
     }
+  });
+
+  eventBus.on('MAIN_APP_SHUTDOWN', () => {
+    mainAppShuttingDown = true;
+    logger.info('邮箱子进程收到关闭信号，开始关闭...');
+    if (!emailWorker.connected) {
+      logger.info('邮箱子进程已关闭');
+      return;
+    }
+    emailWorker.send({ type: 'STOP' });
   });
 }
 
