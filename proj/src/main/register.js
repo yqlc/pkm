@@ -24,7 +24,7 @@ async function startRegisterWorker(eventBus, logger) {
       try {
         // 使用 bulkCreate 的 updateOnDuplicate 选项，实现 upsert 功能
         await Account.bulkCreate(accounts, {
-          updateOnDuplicate: ['fingerprintId', 'password', 'phone', 'birthday', 'jpName', 'fullwidthName', 'romanName', 'zipCode', 'address', 'status', 'reason'], // 需要更新的字段
+          updateOnDuplicate: ['fingerprintId', 'password', 'phone', 'birthday', 'jpName', 'fullwidthName', 'romanName', 'zipCode', 'address'], // 需要更新的字段
           validate: true
         });
 
