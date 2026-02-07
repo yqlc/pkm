@@ -1,9 +1,42 @@
 const winston = require('winston');
 const DailyRotateFile = require('winston-daily-rotate-file');
 const path = require('path');
+const util = require('util');
 
-const printfFormat = winston.format.printf(({ timestamp, level, message, label }) => {
-  return `[${timestamp}] [${label || 'MAIN'}] ${level.toUpperCase()}: ${message}`;
+// 处理元数据对象的实用函数
+const formatMeta = (meta) => {
+  if (!meta) return '';
+
+  const cleanMeta = { ...meta };
+  // 过滤掉可能存在的Symbol属性
+  Object.getOwnPropertySymbols(cleanMeta).forEach(sym => {
+    delete cleanMeta[sym];
+  });
+
+  if (Object.keys(cleanMeta).length === 0) return '';
+
+  if (cleanMeta instanceof Error) {
+    return `${cleanMeta.stack || cleanMeta.message}`;
+  }
+
+  return util.inspect(cleanMeta, {
+    depth: 4,
+    colors: false,
+    compact: true,
+    breakLength: Infinity
+  });
+};
+
+const printfFormat = winston.format.printf(({ timestamp, level, message, label, ...meta }) => {
+  // 处理消息本身
+  const formattedMessage = typeof message === 'object'
+    ? JSON.stringify(message)
+    : message;
+
+  // 格式化元数据
+  const formattedMeta = formatMeta(meta);
+
+  return `[${timestamp}] [${label || 'MAIN'}] ${level.toUpperCase()}: ${formattedMessage} ${formattedMeta}`.trim();
 });
 
 const createLogger = (label) => {

@@ -67,4 +67,26 @@ const Account = sequelize.define('Account', {
   timestamps: true,
 });
 
-module.exports = { sequelize, EmailLog, Account };
+// 定义验证码记录表
+const CaptchaLog = sequelize.define('CaptchaLog', {
+  id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
+  taskId: {
+    type: DataTypes.STRING,
+    field: 'task_id',
+    allowNull: false,
+    unique: true,
+  },
+  phone: DataTypes.STRING,
+  account: DataTypes.STRING,
+  captcha: DataTypes.STRING, // 验证码
+  status: {
+    type: DataTypes.INTEGER,
+    defaultValue: 0, // 0: 待处理, 1: 正在处理, 2: 已发送, 3: 已接收, 4: 已提交, 5: 成功, 6: 失败
+    comment: '状态: 0-待处理, 1-正在处理, 2-已发送, 3-已接收, 4-已提交, 5-成功, 6-失败'
+  },
+  reason: DataTypes.STRING,
+}, {
+  timestamps: true,
+});
+
+module.exports = { sequelize, EmailLog, Account, CaptchaLog };

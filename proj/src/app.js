@@ -3,12 +3,44 @@ const { mainLogger } = require('./utils/logger');
 const { sequelize, EmailLog } = require('./database');
 const { default: startEmailWorker } = require('./main/email');
 const { default: startRegisterWorker } = require('./main/register');
+const { default: startExpressService } = require('./main/service');
 
 const eventBus = new EventEmitter();
 
-// 处理未捕获异常，防止进程意外崩溃
-process.on('uncaughtException', (err) => mainLogger.error(`未捕获异常: ${err.message}`));
-process.on('unhandledRejection', (reason) => mainLogger.error(`未处理 Promise: ${reason}`));
+// 统一的资源清理函数
+async function cleanupAndExit(exitCode) {
+  try {
+    mainLogger.info('开始清理资源...');
+
+    // 尝试关闭数据库连接
+    await sequelize.close();
+    mainLogger.info('数据库已关闭');
+
+    // 尝试关闭 Express 服务器
+    if (global.expressApp && global.expressApp.startedServer) {
+      try {
+        await new Promise((resolve, reject) => {
+          global.expressApp.startedServer.close((err) => {
+            if (err) {
+              reject(err);
+            } else {
+              resolve();
+            }
+          });
+        });
+        mainLogger.info('Express 服务器已关闭');
+      } catch (serverErr) {
+        mainLogger.error(`关闭 Express 服务器时出错: ${serverErr.message}`);
+      }
+    }
+
+    mainLogger.info('资源清理完成');
+  } catch (err) {
+    mainLogger.error(`清理资源时出错: ${err.message}`);
+  } finally {
+    process.exit(exitCode);
+  }
+}
 
 async function initSystem() {
   try {
@@ -28,7 +60,8 @@ async function initSystem() {
     // 3. 启动注册子进程
     startRegisterWorker(eventBus, mainLogger);
 
-    // 4. 初始化其他模块 (暂时留空)
+    // 4. 启动 Express 服务
+    startExpressService(eventBus, mainLogger);
 
     mainLogger.info('系统初始化完成，等待任务...');
 
@@ -37,6 +70,30 @@ async function initSystem() {
     process.exit(1);
   }
 }
+
+// 处理未捕获异常，防止进程意外崩溃
+process.on('uncaughtException', async (err) => {
+  mainLogger.error(`未捕获异常: ${err.message}\n${err.stack}`);
+  // 由于 uncaughtException 会使应用程序处于不确定状态，通常建议退出进程
+  await cleanupAndExit(1);
+});
+
+process.on('unhandledRejection', async (reason, promise) => {
+  mainLogger.error(`未处理 Promise 拒绝: ${reason}\nPromise: ${promise}`);
+  // 退出进程以防止潜在的问题
+  await cleanupAndExit(1);
+});
+
+// 监听进程退出信号，确保优雅关闭
+process.on('SIGINT', async () => {
+  mainLogger.info('收到 SIGINT 信号');
+  await cleanupAndExit(0);
+});
+
+process.on('SIGTERM', async () => {
+  mainLogger.info('收到 SIGTERM 信号');
+  await cleanupAndExit(0);
+});
 
 // 启动
 initSystem();
