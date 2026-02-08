@@ -30,6 +30,7 @@ async function waitForLogin(process, browser, logger, accountData) {
 
   // 等待页面跳转
   await pokemonPage.waitForNavigation({ timeout: 30_000 });
+  await sleep(1_000); // 等待1秒
 
   const startTime = Date.now();
   const maxWaitTime = 60000; // 最大等待时间60秒
@@ -103,6 +104,7 @@ async function waitForMfaVerify(browser, pokemonPage, logger, mfaCode) {
 
   // 等待页面跳转
   await pokemonPage.waitForNavigation({ timeout: 30_000 });
+  await sleep(1_000); // 等待1秒
 
   const startTime = Date.now();
   const maxWaitTime = 60000; // 最大等待时间60秒

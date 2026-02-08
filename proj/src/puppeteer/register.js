@@ -22,6 +22,7 @@ async function triggerSendRegisterEmail(browser, logger, accountData) {
 
   // 等待页面跳转到确认页面
   await pokemonPage.waitForNavigation({ timeout: 60_000 }); // 等待页面跳转
+  await sleep(1_000); // 等待1秒
 
   // 检查是否到达预期的确认页面
   const currentUrl = pokemonPage.url();
@@ -48,6 +49,7 @@ async function triggerSendRegisterEmail(browser, logger, accountData) {
   }, Math.random() * 30);
 
   // 等待并点击发送确认邮件按钮
+  // <a href="" id="send-confirmation-email">仮登録メールを送信する</a>
   await simulatePageClick(pokemonPage, '#send-confirmation-email', Math.random() * 100);
 
   // 等待 REGISTER_EVENT 事件触发
@@ -236,16 +238,17 @@ async function continueRegister(browser, logger, registerUrl, accountData) {
     window.scrollBy(0, scrollValue);
   }, (Math.random() * 50) + 20);
 
+  // <button id="registration_button" type="submit" class="btn btn-block btn-primary" data-imt-p="1" data-imt-translation-only="1">进入输入内容确认</button>
   // 注册按钮
   await simulatePageClick(registerPage, '#registration_button', Math.random() * 100);
 
   // 等待页面跳转
   await registerPage.waitForNavigation({ timeout: 30_000 });
+  await sleep(1_000); // 等待1秒
 
   // 检查页面跳转是否符合成功条件，页面跳转不是立即发生的，需要等待并持续监控页面URL
   const startTime = Date.now();
   const maxWaitTime = 60000; // 最大等待时间60秒
-
   while ((Date.now() - startTime) < maxWaitTime) {
     const currentUrl = registerPage.url();
     logger.info(`监控页面URL: ${currentUrl}`);

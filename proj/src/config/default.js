@@ -28,7 +28,7 @@ module.exports = {
   },
   browser: {
     fingerprintDir: path.join(rootDir, 'assets/fingerprints'), // 浏览器指纹数据目录
-    executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', // 指定浏览器可执行文件路径
+    executablePath: process.env.BROWSER_EXECUTABLE_PATH, // 指定浏览器可执行文件路径
     userDataBaseDir: path.join(rootDir, 'assets/browserData'), // 浏览器用户数据目录
   },
   service: {

@@ -9,14 +9,16 @@ async function createBrowserInstance(accountData) {
   const cacheDirectory = path.join(config.browser?.userDataBaseDir || '', accountData.fingerprintId, 'userData');
   if (!fs.existsSync(cacheDirectory)) {
     fs.mkdirSync(cacheDirectory, { recursive: true });
+  } else {
+    // 需要删除 cacheDirectory 下的所有文件，否则会因 userData/SingletonLock 文件已存在导致程序无法启动
+    fs.rmSync(cacheDirectory, { recursive: true, force: true });
   }
 
-  // TODO: 检查浏览器指纹文件是否存在
-  // eslint-disable-next-line no-unused-vars
+  // 检查浏览器指纹文件是否存在
   const fingerprintPath = path.join(config.browser?.fingerprintDir || '', `${accountData.fingerprintId}.enc`);
-  // if (!fs.existsSync(fingerprintPath)) {
-  //   throw new Error(`浏览器指纹文件 ${fingerprintPath} 不存在`);
-  // }
+  if (!fs.existsSync(fingerprintPath)) {
+    throw new Error(`浏览器指纹文件 ${fingerprintPath} 不存在`);
+  }
 
   const browser = await puppeteer.launch({
     browser: 'chrome',
@@ -32,15 +34,15 @@ async function createBrowserInstance(accountData) {
     args: [
       '--disable-blink-features=AutomationControlled',
       '--disable-audio-output',
-
-      '--no-sandbox',
-      '--disable-setuid-sandbox',
-      '--disable-dev-shm-usage',
-      '--disable-accelerated-2d-canvas',
-      '--no-first-run',
-      '--no-zygote',
-      '--disable-gpu',
-      '--lang=ja-JP',
+      // '--no-sandbox',
+      // '--disable-setuid-sandbox',
+      // '--disable-dev-shm-usage',
+      // '--disable-accelerated-2d-canvas',
+      // '--no-first-run',
+      // '--no-zygote',
+      // '--disable-gpu',
+      // '--lang=ja-JP',
+      `--bot-profile=${fingerprintPath}`,
     ]
   });
 
