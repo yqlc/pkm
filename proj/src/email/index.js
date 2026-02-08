@@ -25,9 +25,9 @@ async function start() {
   }
 
   const imap = new ImapFlow({
-    host: config.email.host,
-    port: config.email.port,
-    secure: config.email.tls,
+    host: config.email.hostImap,
+    port: config.email.portImap,
+    secure: config.email.imapTls,
     auth: {
       user: config.email.user,
       pass: config.email.password

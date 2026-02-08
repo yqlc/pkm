@@ -41,8 +41,9 @@ async function createBrowserInstance(accountData) {
       // '--no-first-run',
       // '--no-zygote',
       // '--disable-gpu',
-      // '--lang=ja-JP',
+      '--lang=ja-JP',
       `--bot-profile=${fingerprintPath}`,
+      // '--proxy-server=socks5://174.138.61.184:1080',
     ]
   });
 

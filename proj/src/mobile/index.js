@@ -107,6 +107,8 @@ async function scheduleModifyTask(task) {
 
       page = await modifyAccountMobile(page, logger, accountData, task.phone);
 
+      // 修改成功了
+
       process.send({
         type: 'MODIFY_ACCOUNT_MOBILE_UPDATE',
         data: {

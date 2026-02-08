@@ -16,9 +16,12 @@ module.exports = {
   email: {
     user: process.env.EMAIL_USER || '',
     password: process.env.EMAIL_PASSWORD || '', // 注意：是IMAP授权码，不是登录密码
-    host: process.env.EMAIL_HOST || 'imap.163.com',
-    port: parseInt(process.env.EMAIL_PORT) || 993,
-    tls: true,
+    hostImap: process.env.EMAIL_IMAP || 'imap.163.com',
+    portImap: parseInt(process.env.EMAIL_IPORT) || 993,
+    hostSmtp: process.env.EMAIL_SMTP || 'smtp.163.com',
+    portSmtp: parseInt(process.env.EMAIL_SPORT) || 465,
+    imapTls: true,
+    smtpTls: true,
   },
   register: {
     timeOfRegisterUrlInMail: 60,  // 注册链接在邮件中的有效时间（分钟）

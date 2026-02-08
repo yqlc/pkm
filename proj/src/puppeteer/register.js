@@ -16,6 +16,17 @@ async function triggerSendRegisterEmail(browser, logger, accountData) {
   await simulatePageInput(pokemonPage, '#login-form-regist-email', accountData.account, Math.random() * 80);
   logger.info(`已输入账号: ${accountData.account}`);
 
+  pokemonPage.on('response', async (response) => {
+    const url = response.url();
+    // 检查URL是否包含特定字符串（例如接口路径）
+    if (url.includes('/Account-SubmitConfirmationEmail')) {
+      const status = response.status();
+      if (status !== 200) {
+        logger.warn(`注册邮箱界面接口: ${url}, Status Code: ${status}`);
+      }
+    }
+  });
+
   // 等待并点击注册按钮
   await simulatePageClick(pokemonPage, '#form2Button', Math.random() * 100);
   logger.info('已点击注册按钮');
@@ -27,7 +38,7 @@ async function triggerSendRegisterEmail(browser, logger, accountData) {
   // 检查是否到达预期的确认页面
   const currentUrl = pokemonPage.url();
   if (!currentUrl.includes('temporary-customer-confirm')) {
-    throw new Error(`未跳转到预期的确认页面，当前URL: ${currentUrl}`);
+    throw new Error(`注册邮箱未跳转到确认页，当前URL: ${currentUrl}`);
   }
 
   logger.info('已跳转到临时客户确认页面');
@@ -42,7 +53,7 @@ async function triggerSendRegisterEmail(browser, logger, accountData) {
     throw new Error(`邮箱值不匹配，期望: ${accountData.account}, 实际: ${emailValue}`);
   }
 
-  logger.info(`邮箱值验证成功: ${emailValue}`);
+  logger.info(`注册邮箱验证成功: ${emailValue}`);
 
   await pokemonPage.evaluate((scrollValue) => {
     window.scrollBy(0, scrollValue);
@@ -185,13 +196,21 @@ async function continueRegister(browser, logger, registerUrl, accountData) {
   const address = accountData.address || '';
   const { mainText: prefecture, bracketText: building } = splitByBrackets(address);
 
-  await simulatePageInput(registerPage, '#registration-form-address-line1', prefecture, (Math.random() * 100) + 20);
-  logger.info(`已输入番地: ${prefecture}`);
+  if (prefecture) {
+    await simulatePageInput(registerPage, '#registration-form-address-line1', prefecture, (Math.random() * 100) + 20);
+    logger.info(`已输入番地: ${prefecture}`);
+  } else {
+    const houseNumber = '番地なし';
+    await simulatePageInput(registerPage, '#registration-form-address-line1', houseNumber, (Math.random() * 100) + 20);
+    logger.info(`已输入番地: ${houseNumber}`);
+  }
 
   await waitForNextOperation();
 
-  await simulatePageInput(registerPage, '#registration-form-address-line2', building, (Math.random() * 100) + 20);
-  logger.info(`已输入建物名・部屋番号: ${building}`);
+  if (building) {
+    await simulatePageInput(registerPage, '#registration-form-address-line2', building, (Math.random() * 100) + 20);
+    logger.info(`已输入建物名・部屋番号: ${building}`);
+  }
 
   // 联系电话 请输入半角数字、“-”符号以内14字符。
   const phone = accountData.phone || '0900000000';
@@ -242,10 +261,6 @@ async function continueRegister(browser, logger, registerUrl, accountData) {
   // 注册按钮
   await simulatePageClick(registerPage, '#registration_button', Math.random() * 100);
 
-  // 等待页面跳转
-  await registerPage.waitForNavigation({ timeout: 30_000 });
-  await sleep(1_000); // 等待1秒
-
   // 检查页面跳转是否符合成功条件，页面跳转不是立即发生的，需要等待并持续监控页面URL
   const startTime = Date.now();
   const maxWaitTime = 60000; // 最大等待时间60秒
@@ -257,6 +272,11 @@ async function continueRegister(browser, logger, registerUrl, accountData) {
     const successPattern = /https:\/\/www\.pokemoncenter-online\.com\/new-customer-confirm\/\?rurl=1/;
     if (successPattern.test(currentUrl)) {
       logger.info('检测到注册成功确认页面，注册流程完成');
+
+      // 等待页面跳转
+      await registerPage.waitForNavigation({ timeout: 30_000 });
+      await sleep(1_000); // 等待1秒
+
       // 关闭页面
       await registerPage.close();
       return; // 结束当前流程
@@ -276,13 +296,17 @@ async function continueRegister(browser, logger, registerUrl, accountData) {
           return errorDiv ? errorDiv.innerText.trim() : '';
         });
 
-        logger.info(`检测到错误信息: ${errorText}`);
-
         // 抛出异常，结束当前流程
-        throw new Error(`注册信息填写页面错误: ${errorText}`);
+        const checkError = new Error(`注册信息填写页面错误: ${errorText}`);
+        checkError.name = 'PkmCheckError';
+        throw checkError;
       }
     } catch (err) {
-      logger.warn(`检查注册是否包含错误信息时出现问题: ${err.message}`);
+      if (err.name === 'PkmCheckError') {
+        logger.warn(err.message);
+      } else {
+        logger.warn(`检查注册页是否包含错误信息时出现问题: ${err.message}`);
+      }
 
       await registerPage.close();
 
@@ -294,10 +318,10 @@ async function continueRegister(browser, logger, registerUrl, accountData) {
     await sleep(1_000); // 等待1秒
   }
 
-  logger.info('超过最大等待时间，页面仍未跳转到预期URL');
+  logger.info('等待注册结果超时，页面未跳转到预期URL');
   await registerPage.close();
 
-  const timeoutError = new Error('完成注册信息填写，后页面跳转检测超时');
+  const timeoutError = new Error('注册信息填写完成后，页面跳转检测超时');
   timeoutError.name = 'TimeoutError';
   throw timeoutError;
 }

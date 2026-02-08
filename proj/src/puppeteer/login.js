@@ -28,15 +28,12 @@ async function waitForLogin(process, browser, logger, accountData) {
   await simulatePageClick(pokemonPage, '#form1Button', Math.random() * 100);
   logger.info('已点击登录按钮');
 
-  // 等待页面跳转
-  await pokemonPage.waitForNavigation({ timeout: 30_000 });
-  await sleep(1_000); // 等待1秒
-
+  let isSuccess = false;
   const startTime = Date.now();
   const maxWaitTime = 60000; // 最大等待时间60秒
   while ((Date.now() - startTime) < maxWaitTime) {
     const currentUrl = pokemonPage.url();
-    logger.info(`登录流程监控URL: ${currentUrl}`);
+    logger.info(`登录第一步监控URL: ${currentUrl}`);
 
     // 检查是否跳转到了mfa页面
     // https://www.pokemoncenter-online.com/login-mfa/?rurl=1
@@ -44,47 +41,57 @@ async function waitForLogin(process, browser, logger, accountData) {
     if (successPattern.test(currentUrl)) {
       logger.info('检测到MFA页面，登录第一步完成');
 
-      const mfaCode = await waitForMfaCodeEmail(process, accountData);
-
-      await sleep(1_000);
-
-      // 登录并返回页面
-      return await waitForMfaVerify(browser, pokemonPage, logger, mfaCode); // 结束当前流程
+      isSuccess = true;
+      break; // 结束当前流程
     }
 
     // 检查界面中是否存在 comErrorBox 节点
-    let errorText = null;
     try {
-      errorText = await pokemonPage.evaluate(() => {
+      const errorText = await pokemonPage.evaluate(() => {
         const errorBox = document.querySelector('.comErrorBox');
         if (errorBox) {
           return errorBox.textContent.trim();
         }
         return null;
       });
+
+      if (errorText) {
+        // 抛出异常，结束当前流程
+        const checkError = new Error(`登录页面错误: ${errorText}`);
+        checkError.name = 'PkmCheckError';
+        throw checkError;
+      }
     } catch (err) {
-      logger.warn(`检查登录界面是否包含错误信息时出现问题: ${err.message}`);
-    }
+      if (err.name === 'PkmCheckError') {
+        logger.warn(err.message);
+      } else {
+        logger.warn(`检查登录页是否包含错误信息时出现问题: ${err.message}`);
+      }
 
-    if (errorText) {
-      logger.info(`检测到登录错误信息: ${errorText}`);
-
-      await pokemonPage.close();
-
-      // 抛出异常，结束当前流程
-      throw new Error(`登录页面错误: ${errorText}`);
+      throw err;
     }
 
     // 等待一段时间后再检查
     await sleep(1_000); // 等待1秒
   }
 
-  logger.info('超过最大等待时间，页面仍未跳转到预期URL');
-  await pokemonPage.close();
+  if (!isSuccess) {
+    logger.info('等待登录第一步超时，页面仍未跳转到预期URL');
 
-  const timeoutError = new Error('登录第一步确认后，页面跳转检测超时');
-  timeoutError.name = 'TimeoutError';
-  throw timeoutError;
+    const timeoutError = new Error('登录提交后，页面跳转检测超时');
+    timeoutError.name = 'TimeoutError';
+    throw timeoutError;
+  }
+
+  // 等待页面跳转
+  await pokemonPage.waitForNavigation({ timeout: 30_000 });
+  await sleep(1_000); // 等待1秒
+
+  const mfaCode = await waitForMfaCodeEmail(process, accountData);
+  await sleep(1_000);
+
+  // 登录并返回页面
+  return await waitForMfaVerify(browser, pokemonPage, logger, mfaCode); // 结束当前流程
 };
 
 async function waitForMfaVerify(browser, pokemonPage, logger, mfaCode) {
@@ -102,15 +109,12 @@ async function waitForMfaVerify(browser, pokemonPage, logger, mfaCode) {
   await simulatePageClick(pokemonPage, '#authBtn', Math.random() * 100);
   logger.info('已点击验证按钮');
 
-  // 等待页面跳转
-  await pokemonPage.waitForNavigation({ timeout: 30_000 });
-  await sleep(1_000); // 等待1秒
-
+  let isSuccess = false;
   const startTime = Date.now();
   const maxWaitTime = 60000; // 最大等待时间60秒
   while ((Date.now() - startTime) < maxWaitTime) {
     const currentUrl = pokemonPage.url();
-    logger.info(`登录流程监控URL: ${currentUrl}`);
+    logger.info(`登录MFA监控URL: ${currentUrl}`);
 
     // 检查是否跳转到了用户主页
     // https://www.pokemoncenter-online.com/mypage/
@@ -118,43 +122,53 @@ async function waitForMfaVerify(browser, pokemonPage, logger, mfaCode) {
     if (successPattern.test(currentUrl)) {
       logger.info('检测到用户主页面，登录完成');
 
-      // 返回当前页面
-      return pokemonPage; // 结束当前流程
+      isSuccess = true;
+      break;  // 结束当前流程
     }
 
     // 检查界面中是否存在 comErrorBox 节点
-    let errorText = null;
     try {
-      errorText = await pokemonPage.evaluate(() => {
+      const errorText = await pokemonPage.evaluate(() => {
         const errorBox = document.querySelector('.comErrorBox');
         if (errorBox) {
           return errorBox.textContent.trim();
         }
         return null;
       });
+
+      if (errorText) {
+        // 抛出异常，结束当前流程
+        const checkError = new Error(`登录(MFA)页面错误: ${errorText}`);
+        checkError.name = 'PkmCheckError';
+        throw checkError;
+      }
     } catch (err) {
-      logger.warn(`检查MFA登录界面是否包含错误信息时出现问题: ${err.message}`);
-    }
+      if (err.name === 'PkmCheckError') {
+        logger.warn(err.message);
+      } else {
+        logger.warn(`检查登录MFA页是否包含错误信息时出现问题: ${err.message}`);
+      }
 
-    if (errorText) {
-      logger.info(`检测到MFA登录错误信息: ${errorText}`);
-
-      await pokemonPage.close();
-
-      // 抛出异常，结束当前流程
-      throw new Error(`登录页面(MFA)错误: ${errorText}`);
+      throw err;
     }
 
     // 等待一段时间后再检查
     await sleep(1_000); // 等待1秒
   }
 
-  logger.info('超过最大等待时间，页面仍未跳转到预期URL');
-  await pokemonPage.close();
+  if (!isSuccess) {
+    logger.info('等待登录MFA超时，页面未跳转到预期URL');
 
-  const timeoutError = new Error('登录MFA验证后，页面跳转检测超时');
-  timeoutError.name = 'TimeoutError';
-  throw timeoutError;
+    const timeoutError = new Error('登录(MFA)验证后，页面跳转检测超时');
+    timeoutError.name = 'TimeoutError';
+    throw timeoutError;
+  }
+
+  // 等待页面跳转
+  await pokemonPage.waitForNavigation({ timeout: 30_000 });
+  await sleep(1_000); // 等待1秒
+
+  return pokemonPage;
 }
 
 async function waitForMfaCodeEmail(process, accountData) {
