@@ -30,15 +30,17 @@ async function startRegisterWorker(eventBus, logger) {
 
         // 然后专门处理状态为2的账号，将其状态改为0并清空reason
         const accountNames = accounts.map(acc => acc.account);
-        await Account.update(
-          { status: 0, reason: null },
-          {
-            where: {
-              account: accountNames,
-              status: 2  // 只更新状态为2的账号
+        if (accountNames.length > 0) {
+          await Account.update(
+            { status: 0, reason: null },
+            {
+              where: {
+                account: accountNames,
+                status: 2  // 只更新状态为2的账号
+              }
             }
-          }
-        );
+          );
+        }
 
         logger.info(`成功处理 ${accounts.length} 条账户记录`);
       } catch (err) {

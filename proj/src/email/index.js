@@ -182,18 +182,26 @@ async function fetchAndProcessEmails(imap) {
     logger.info(`命中目标邮件 UID:${msgUid} 主题: ${msg.envelope.subject} 来自: ${fromAddress} 收件人: ${toAddress}`);
     try {
       const parsed = await simpleParser(msg.source);
-      const res = analyzeEmailContent(msg.envelope.date, parsed.text || parsed.html);
-      if (res) {
-        logger.info(`解析成功 UID:${msg.uid} 主题:${parsed.subject} 结果: ${JSON.stringify(res)}`);
-        process.send({
-          type: 'EMAIL_FOUND',
+
+      let analyzedData = null;
+
+      if (parsed.subject.includes('ログイン用パスコードのお知らせ')) {
+        analyzedData = analyzeMfaLoginCode(parsed.text || parsed.html);
+      } else {
+        analyzedData = analyzeRegisterInfo(msg.envelope.date, parsed.text || parsed.html);
+      }
+
+      if (analyzedData) {
+        logger.info(`解析成功 UID:${msg.uid} 主题:${parsed.subject} 结果: ${JSON.stringify(analyzedData)}`);
+
+        process.send({ type: 'EMAIL_FOUND',
           data: {
             uid: msgUid,
             sender: fromAddress,
             subject: parsed.subject,
             recipient: toAddress,
             receiveDate: msg.envelope.date,
-            ...res,
+            ...analyzedData
           }
         });
       }
@@ -203,7 +211,29 @@ async function fetchAndProcessEmails(imap) {
   }
 }
 
-function analyzeEmailContent(receiveDate, content) {
+function analyzeMfaLoginCode(content) {
+  const regex = [
+    /【パスコード】\s*(\d{4,8})/,
+    /パスコード[:：]\s*(\d{4,8})/,
+    /認証コード[:：]\s*(\d{4,8})/,
+    /コード[:：]\s*(\d{4,8})/,
+    /^(\d{6})[\s\n]/m
+  ];
+
+  for (const pattern of regex) {
+    const match = content.match(pattern);
+    if (match && match[1]) {
+      const code = match[1];
+      if (code) {
+        return { type: 'login_mfa_code', result: code };
+      }
+    }
+  }
+
+  return null;
+}
+
+function analyzeRegisterInfo(receiveDate, content) {
   if (!content) return null;
   // 匹配包含 /new-customer/ 或 /new-customer? 的 URL
   const url = content.match(/(https:\/\/www\.pokemoncenter-online\.com\/new-customer[\/\?][^\s"'<>]*)/)?.[1];
@@ -226,9 +256,7 @@ function analyzeEmailContent(receiveDate, content) {
     return { type: 'email_registed' };
   }
 
-  const code = content.match(/验证码[：:]\s*(\d{6})/)?.[1];
-
-  return code ? { type: 'login_captcha', result: code } : null;
+  return null;
 }
 
 // IPC

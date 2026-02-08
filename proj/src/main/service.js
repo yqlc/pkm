@@ -136,7 +136,7 @@ async function startExpressService(eventBus, logger) {
           data: { taskId }
         });
 
-        eventBus.emit(MODIFY_MOBILE_EVENT, { type: 'task_created', taskId, phone });
+        eventBus.emit('MODIFY_MOBILE_EVENT', { type: 'task_created', taskId, phone });
       } catch (error) {
         logger.error(`创建任务时出错: ${error.message}`);
         res.status(500).json({
@@ -176,10 +176,10 @@ async function startExpressService(eventBus, logger) {
         await captchaRecord.update({
           captcha,
           status: 3, // 已接收
-          reason: '验证码已接收'
+          reason: 'Captcha received'
         });
 
-        eventBus.emit(MODIFY_MOBILE_EVENT, { type: 'task_submitted', taskId, captcha });
+        eventBus.emit('MODIFY_MOBILE_EVENT', { type: 'task_submitted', taskId, captcha });
 
         logger.info(`验证码已接收: taskId=${taskId}, captcha=***`);
 

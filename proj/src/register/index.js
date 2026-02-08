@@ -131,7 +131,7 @@ async function getValidRegisterUrl(account) {
       timeoutId = setTimeout(() => {
         process.removeListener('message', handleResponse);
         resolve(null); // 超时则返回 null
-      }, 10_000); // 10秒超时
+      }, 30_000); // 30秒超时
 
       process.send({
         type: 'GET_NEWEST_REGISTER_URL',

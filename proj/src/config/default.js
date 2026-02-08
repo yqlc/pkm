@@ -23,6 +23,7 @@ module.exports = {
   register: {
     timeOfRegisterUrlInMail: 60,  // 注册链接在邮件中的有效时间（分钟）
     timeOfListemRegisterUrl: 60,  // 监听注册链接的时间（分钟）
+    timeOfListemMfaCode: 5,       // 监听MFA登录验证码的时间（分钟）
     excelFilePath: path.join(rootDir, process.env.REGISTER_EXCEL_FILE_PATH || 'assets/accounts.xlsx')
   },
   browser: {
@@ -32,5 +33,10 @@ module.exports = {
   },
   service: {
     port: process.env.SERVICE_HOST_PORT || 8080,
+  },
+  tasks: {
+    mobile: {
+      concurrenceCount: 4,
+    }
   }
 };

@@ -236,9 +236,6 @@ async function continueRegister(browser, logger, registerUrl, accountData) {
     window.scrollBy(0, scrollValue);
   }, (Math.random() * 50) + 20);
 
-  // 随机等待一段时间
-  await sleep(Math.floor(Math.random() * 1_000) + 500);
-
   // 注册按钮
   await simulatePageClick(registerPage, '#registration_button', Math.random() * 100);
 

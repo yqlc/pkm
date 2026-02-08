@@ -61,6 +61,8 @@ async function waitForNextOperation() {
 }
 
 async function simulatePageClick(page, selector, scrollByY) {
+  await sleep(Math.floor(Math.random() * 500) + 500);
+
   // 等待并点击注册按钮
   await page.waitForSelector(selector, { visible: true, timeout: 10_000 });
 
