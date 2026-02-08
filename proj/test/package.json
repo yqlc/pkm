@@ -7,7 +7,7 @@
   "license": "UNLICENSED",
   "dependencies": {
     "dayjs": "^1.11.19",
-    "imapflow": "^1.2.6",
-    "mailparser": "^3.9.1"
+    "nodemailer": "^8.0.1",
+    "puppeteer-core": "^24.37.2"
   }
 }
