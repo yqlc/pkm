@@ -239,6 +239,9 @@ async function continueRegister(browser, logger, registerUrl, accountData) {
   // 注册按钮
   await simulatePageClick(registerPage, '#registration_button', Math.random() * 100);
 
+  // 等待页面跳转
+  await registerPage.waitForNavigation({ timeout: 30_000 });
+
   // 检查页面跳转是否符合成功条件，页面跳转不是立即发生的，需要等待并持续监控页面URL
   const startTime = Date.now();
   const maxWaitTime = 60000; // 最大等待时间60秒
